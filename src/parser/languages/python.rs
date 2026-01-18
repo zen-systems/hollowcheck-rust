@@ -61,7 +61,7 @@ static SYMBOL_CAPTURES: &[SymbolCapture] = &[
 /// Create a new Python parser.
 pub fn new_parser() -> Box<dyn Parser> {
     Box::new(TreeSitterParser::new(Config {
-        language: tree_sitter_python::language().into(),
+        language: tree_sitter_python::language(),
         language_name: "python",
         symbol_query: SYMBOL_QUERY,
         symbol_captures: SYMBOL_CAPTURES,

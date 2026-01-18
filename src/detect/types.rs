@@ -85,7 +85,7 @@ impl ViolationRule {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "forbidden_pattern" => Some(ViolationRule::ForbiddenPattern),
             "mock_data" => Some(ViolationRule::MockData),

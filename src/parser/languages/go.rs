@@ -68,7 +68,7 @@ static SYMBOL_CAPTURES: &[SymbolCapture] = &[
 /// Create a new Go parser.
 pub fn new_parser() -> Box<dyn Parser> {
     Box::new(TreeSitterParser::new(Config {
-        language: tree_sitter_go::language().into(),
+        language: tree_sitter_go::language(),
         language_name: "go",
         symbol_query: SYMBOL_QUERY,
         symbol_captures: SYMBOL_CAPTURES,

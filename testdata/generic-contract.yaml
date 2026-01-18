@@ -1,0 +1,46 @@
+version: "1.0"
+name: "generic-quality-check"
+description: "Language-agnostic quality checks - works on any supported language"
+
+# These patterns are detected in ALL files regardless of language
+forbidden_patterns:
+  - pattern: "TODO"
+    description: "Work-in-progress marker"
+  - pattern: "FIXME"
+    description: "Known issue marker"
+  - pattern: "HACK"
+    description: "Workaround marker"
+  - pattern: "XXX"
+    description: "Attention marker"
+  - pattern: "unimplemented!"
+    description: "Rust unimplemented macro"
+  - pattern: "todo!"
+    description: "Rust todo macro"
+  - pattern: 'panic!\("not implemented'
+    description: "Panic with not implemented"
+  - pattern: "NotImplementedError"
+    description: "Python not implemented"
+  - pattern: "throw new Error\\(\"not implemented"
+    description: "JS/TS not implemented"
+
+# Mock data patterns - detected in ALL files
+mock_signatures:
+  skip_test_files: true
+  patterns:
+    - pattern: "example\\.com"
+      description: "Placeholder domain"
+    - pattern: '"12345"|"00000"|"11111"'
+      description: "Sequential/fake IDs"
+    - pattern: "lorem ipsum"
+      description: "Placeholder text"
+    - pattern: "test@test\\.com"
+      description: "Fake email"
+    - pattern: "password123|changeme|secret123"
+      description: "Placeholder credentials"
+    - pattern: "xxx-xxx-xxxx"
+      description: "Fake phone number"
+    - pattern: "asdf1234"
+      description: "Fake API key"
+
+# Threshold - fail if score exceeds this
+threshold: 25

@@ -78,7 +78,7 @@ static SYMBOL_CAPTURES: &[SymbolCapture] = &[
 /// Create a new TypeScript parser.
 pub fn new_typescript_parser() -> Box<dyn Parser> {
     Box::new(TreeSitterParser::new(Config {
-        language: tree_sitter_typescript::language_typescript().into(),
+        language: tree_sitter_typescript::language_typescript(),
         language_name: "typescript",
         symbol_query: SYMBOL_QUERY,
         symbol_captures: SYMBOL_CAPTURES,
@@ -92,7 +92,7 @@ pub fn new_typescript_parser() -> Box<dyn Parser> {
 /// Create a new JavaScript parser (uses TypeScript parser with JSX support).
 pub fn new_javascript_parser() -> Box<dyn Parser> {
     Box::new(TreeSitterParser::new(Config {
-        language: tree_sitter_typescript::language_tsx().into(),
+        language: tree_sitter_typescript::language_tsx(),
         language_name: "javascript",
         symbol_query: SYMBOL_QUERY,
         symbol_captures: SYMBOL_CAPTURES,

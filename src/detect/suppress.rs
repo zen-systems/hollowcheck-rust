@@ -193,7 +193,7 @@ pub fn matches_suppression(violation: &Violation, suppression: &Suppression) -> 
 
     // Must match rule (or suppression is for all rules with "*")
     if suppression.rule != "*" {
-        if let Some(rule) = ViolationRule::from_str(&suppression.rule) {
+        if let Some(rule) = ViolationRule::parse(&suppression.rule) {
             if violation.rule != rule {
                 return false;
             }

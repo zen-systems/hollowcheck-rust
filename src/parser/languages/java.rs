@@ -70,7 +70,7 @@ static SYMBOL_CAPTURES: &[SymbolCapture] = &[
 /// Create a new Java parser.
 pub fn new_parser() -> Box<dyn Parser> {
     Box::new(TreeSitterParser::new(Config {
-        language: tree_sitter_java::language().into(),
+        language: tree_sitter_java::language(),
         language_name: "java",
         symbol_query: SYMBOL_QUERY,
         symbol_captures: SYMBOL_CAPTURES,

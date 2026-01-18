@@ -492,7 +492,7 @@ fn calculate_complexities_java(file_path: &Path) -> anyhow::Result<Vec<FuncCompl
             if let Some(name) = caps.get(1) {
                 let name_str = name.as_str();
                 // Skip class declarations (constructor names match class names, etc.)
-                if name_str.chars().next().map_or(false, |c| c.is_uppercase()) {
+                if name_str.chars().next().is_some_and(|c| c.is_uppercase()) {
                     continue;
                 }
                 let body = extract_function_body(&lines, line_num);

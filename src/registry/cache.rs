@@ -117,7 +117,7 @@ impl RegistryCache {
     fn cache_file_path(&self, key: &str) -> Option<PathBuf> {
         self.cache_dir.as_ref().map(|dir| {
             // Sanitize key for filename (replace : with _)
-            let filename = key.replace(':', "_").replace('/', "_");
+            let filename = key.replace([':', '/'], "_");
             dir.join(format!("{}.cache", filename))
         })
     }
