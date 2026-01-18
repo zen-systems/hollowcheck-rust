@@ -68,7 +68,7 @@ static SYMBOL_CAPTURES: &[SymbolCapture] = &[
 /// Create a new JavaScript parser.
 pub fn new_parser() -> Box<dyn Parser> {
     Box::new(TreeSitterParser::new(Config {
-        language: tree_sitter_javascript::language(),
+        language: tree_sitter_javascript::LANGUAGE.into(),
         language_name: "javascript",
         symbol_query: SYMBOL_QUERY,
         symbol_captures: SYMBOL_CAPTURES,
@@ -115,20 +115,28 @@ class MyClass {
         let symbols = parser.parse_symbols(source).unwrap();
 
         assert!(
-            symbols.iter().any(|s| s.name == "hello" && s.kind == "function"),
+            symbols
+                .iter()
+                .any(|s| s.name == "hello" && s.kind == "function"),
             "Expected hello function, got: {:?}",
             symbols
         );
         assert!(
-            symbols.iter().any(|s| s.name == "world" && s.kind == "function"),
+            symbols
+                .iter()
+                .any(|s| s.name == "world" && s.kind == "function"),
             "Expected world function"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "MyClass" && s.kind == "type"),
+            symbols
+                .iter()
+                .any(|s| s.name == "MyClass" && s.kind == "type"),
             "Expected MyClass"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "method" && s.kind == "method"),
+            symbols
+                .iter()
+                .any(|s| s.name == "method" && s.kind == "method"),
             "Expected method"
         );
     }

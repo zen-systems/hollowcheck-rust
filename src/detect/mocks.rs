@@ -103,11 +103,7 @@ fn scan_file_for_mocks(
         for s in signatures {
             if s.regex.is_match(&line) {
                 let msg = if let Some(desc) = &s.description {
-                    format!(
-                        "mock data signature {:?} found: {}",
-                        s.regex.as_str(),
-                        desc
-                    )
+                    format!("mock data signature {:?} found: {}", s.regex.as_str(), desc)
                 } else {
                     format!("mock data signature {:?} found", s.regex.as_str())
                 };
@@ -162,7 +158,10 @@ var userId = "user-12345"
 
         let result = detect_mock_data(&[&file_path], Some(&cfg)).unwrap();
         assert_eq!(result.violations.len(), 2);
-        assert!(result.violations.iter().all(|v| v.rule == ViolationRule::MockData));
+        assert!(result
+            .violations
+            .iter()
+            .all(|v| v.rule == ViolationRule::MockData));
     }
 
     #[test]

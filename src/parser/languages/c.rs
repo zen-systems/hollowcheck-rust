@@ -76,7 +76,7 @@ static SYMBOL_CAPTURES: &[SymbolCapture] = &[
 /// Create a new C parser.
 pub fn new_parser() -> Box<dyn Parser> {
     Box::new(TreeSitterParser::new(Config {
-        language: tree_sitter_c::language(),
+        language: tree_sitter_c::LANGUAGE.into(),
         language_name: "c",
         symbol_query: SYMBOL_QUERY,
         symbol_captures: SYMBOL_CAPTURES,
@@ -123,24 +123,34 @@ void helper(void) {
         let symbols = parser.parse_symbols(source).unwrap();
 
         assert!(
-            symbols.iter().any(|s| s.name == "MyInt" && s.kind == "type"),
+            symbols
+                .iter()
+                .any(|s| s.name == "MyInt" && s.kind == "type"),
             "Expected MyInt typedef, got: {:?}",
             symbols
         );
         assert!(
-            symbols.iter().any(|s| s.name == "Config" && s.kind == "type"),
+            symbols
+                .iter()
+                .any(|s| s.name == "Config" && s.kind == "type"),
             "Expected Config struct"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "Status" && s.kind == "type"),
+            symbols
+                .iter()
+                .any(|s| s.name == "Status" && s.kind == "type"),
             "Expected Status enum"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "process_data" && s.kind == "function"),
+            symbols
+                .iter()
+                .any(|s| s.name == "process_data" && s.kind == "function"),
             "Expected process_data function"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "helper" && s.kind == "function"),
+            symbols
+                .iter()
+                .any(|s| s.name == "helper" && s.kind == "function"),
             "Expected helper function"
         );
     }

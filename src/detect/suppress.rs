@@ -126,7 +126,14 @@ pub fn parse_suppressions(file_path: &str, content: &str) -> Vec<Suppression> {
                         // If there's other content (code or comments), treat as line.
                         if let Some(m) = caps.get(0) {
                             let before_match = &line[..m.start()];
-                            let has_content_before = before_match.trim().trim_start_matches('/').trim_start_matches('#').trim_start_matches("/*").trim_start_matches("<!--").trim().is_empty();
+                            let has_content_before = before_match
+                                .trim()
+                                .trim_start_matches('/')
+                                .trim_start_matches('#')
+                                .trim_start_matches("/*")
+                                .trim_start_matches("<!--")
+                                .trim()
+                                .is_empty();
                             if has_content_before {
                                 SuppressionType::NextLine
                             } else {

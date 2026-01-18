@@ -70,7 +70,7 @@ static SYMBOL_CAPTURES: &[SymbolCapture] = &[
 /// Create a new Java parser.
 pub fn new_parser() -> Box<dyn Parser> {
     Box::new(TreeSitterParser::new(Config {
-        language: tree_sitter_java::language(),
+        language: tree_sitter_java::LANGUAGE.into(),
         language_name: "java",
         symbol_query: SYMBOL_QUERY,
         symbol_captures: SYMBOL_CAPTURES,
@@ -117,23 +117,33 @@ enum Status {
         let symbols = parser.parse_symbols(source).unwrap();
 
         assert!(
-            symbols.iter().any(|s| s.name == "MyClass" && s.kind == "type"),
+            symbols
+                .iter()
+                .any(|s| s.name == "MyClass" && s.kind == "type"),
             "Expected MyClass"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "method" && s.kind == "method"),
+            symbols
+                .iter()
+                .any(|s| s.name == "method" && s.kind == "method"),
             "Expected method"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "calculate" && s.kind == "method"),
+            symbols
+                .iter()
+                .any(|s| s.name == "calculate" && s.kind == "method"),
             "Expected calculate"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "MyInterface" && s.kind == "type"),
+            symbols
+                .iter()
+                .any(|s| s.name == "MyInterface" && s.kind == "type"),
             "Expected MyInterface"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "Status" && s.kind == "type"),
+            symbols
+                .iter()
+                .any(|s| s.name == "Status" && s.kind == "type"),
             "Expected Status enum"
         );
     }

@@ -31,8 +31,8 @@ struct CacheEntry {
 impl RegistryCache {
     /// Create a new registry cache with the given TTL.
     pub fn new(ttl_hours: u32) -> Self {
-        let cache_dir = ProjectDirs::from("", "", "hollowcheck")
-            .map(|dirs| dirs.cache_dir().join("registry"));
+        let cache_dir =
+            ProjectDirs::from("", "", "hollowcheck").map(|dirs| dirs.cache_dir().join("registry"));
 
         // Try to create cache directory
         if let Some(ref dir) = cache_dir {

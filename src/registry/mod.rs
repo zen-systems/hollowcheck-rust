@@ -142,7 +142,8 @@ impl RegistryClient {
         // Cache the result (both positive and negative)
         match &status {
             Ok(PackageStatus::Exists) | Ok(PackageStatus::NotFound) => {
-                self.cache.set(registry, package, status.as_ref().unwrap().clone());
+                self.cache
+                    .set(registry, package, status.as_ref().unwrap().clone());
             }
             _ => {}
         }
@@ -196,14 +197,16 @@ impl RegistryClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::contract::RegistriesConfig;
 
     #[test]
     fn test_registry_type_from_extension() {
         assert_eq!(RegistryType::from_extension("py"), Some(RegistryType::PyPI));
         assert_eq!(RegistryType::from_extension("js"), Some(RegistryType::Npm));
         assert_eq!(RegistryType::from_extension("ts"), Some(RegistryType::Npm));
-        assert_eq!(RegistryType::from_extension("rs"), Some(RegistryType::Crates));
+        assert_eq!(
+            RegistryType::from_extension("rs"),
+            Some(RegistryType::Crates)
+        );
         assert_eq!(RegistryType::from_extension("go"), Some(RegistryType::Go));
         assert_eq!(RegistryType::from_extension("java"), None);
     }

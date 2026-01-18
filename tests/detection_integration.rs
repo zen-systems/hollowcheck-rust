@@ -19,7 +19,10 @@ fn setup() {
 }
 
 /// Load the test contract and run detection against testdata.
-fn run_detection() -> (hollowcheck::detect::DetectionResult, hollowcheck::score::HollownessScore) {
+fn run_detection() -> (
+    hollowcheck::detect::DetectionResult,
+    hollowcheck::score::HollownessScore,
+) {
     setup();
 
     let testdata = testdata_path();
@@ -35,7 +38,9 @@ fn run_detection() -> (hollowcheck::detect::DetectionResult, hollowcheck::score:
         .collect();
 
     let runner = Runner::new(&testdata);
-    let result = runner.run(&files, &contract).expect("detection should succeed");
+    let result = runner
+        .run(&files, &contract)
+        .expect("detection should succeed");
     let hollowness = score::calculate(&result, &contract);
 
     (result, hollowness)
@@ -58,9 +63,15 @@ fn test_detection_finds_forbidden_patterns() {
     );
 
     // Check for specific patterns
-    let has_todo = forbidden_patterns.iter().any(|v| v.message.contains("TODO"));
-    let has_fixme = forbidden_patterns.iter().any(|v| v.message.contains("FIXME"));
-    let has_hack = forbidden_patterns.iter().any(|v| v.message.contains("HACK"));
+    let has_todo = forbidden_patterns
+        .iter()
+        .any(|v| v.message.contains("TODO"));
+    let has_fixme = forbidden_patterns
+        .iter()
+        .any(|v| v.message.contains("FIXME"));
+    let has_hack = forbidden_patterns
+        .iter()
+        .any(|v| v.message.contains("HACK"));
     let has_xxx = forbidden_patterns.iter().any(|v| v.message.contains("XXX"));
 
     assert!(has_todo, "Should find TODO pattern");
@@ -89,9 +100,9 @@ fn test_detection_finds_mock_data() {
     let has_example_domain = mock_violations
         .iter()
         .any(|v| v.message.contains("example") && v.message.contains("com"));
-    let has_fake_id = mock_violations
-        .iter()
-        .any(|v| v.message.contains("12345") || v.message.contains("00000") || v.message.contains("11111"));
+    let has_fake_id = mock_violations.iter().any(|v| {
+        v.message.contains("12345") || v.message.contains("00000") || v.message.contains("11111")
+    });
     let has_lorem = mock_violations
         .iter()
         .any(|v| v.message.contains("lorem") && v.message.contains("ipsum"));
@@ -373,7 +384,6 @@ fn test_expected_score_range() {
     assert!(
         !hollowness.passed,
         "Should fail with default threshold, score={} threshold={}",
-        hollowness.score,
-        hollowness.threshold
+        hollowness.score, hollowness.threshold
     );
 }

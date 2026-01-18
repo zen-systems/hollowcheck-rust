@@ -84,11 +84,7 @@ pub fn write_json(
     result: &DetectionResult,
     score: &HollownessScore,
 ) -> anyhow::Result<()> {
-    let violations: Vec<JsonViolation> = result
-        .violations
-        .iter()
-        .map(violation_to_json)
-        .collect();
+    let violations: Vec<JsonViolation> = result.violations.iter().map(violation_to_json).collect();
 
     let new_violations: Vec<JsonViolation> = result
         .new_violations
@@ -381,7 +377,8 @@ fn make_relative_path(file_path: &str, base_path: &Path) -> String {
 
     // If they're the same (single file scan), return just the filename
     if file == base_path {
-        return file.file_name()
+        return file
+            .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| file_path.to_string());
     }
@@ -542,7 +539,10 @@ fn write_result_summary(score: &HollownessScore, suppressed_count: usize) {
     write_colored_grade(&score.grade);
 
     if suppressed_count > 0 {
-        print!("  {}", format!("({} suppressed)", suppressed_count).dimmed());
+        print!(
+            "  {}",
+            format!("({} suppressed)", suppressed_count).dimmed()
+        );
     }
 
     println!();

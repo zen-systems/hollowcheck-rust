@@ -71,6 +71,9 @@ mod tests {
         assert_eq!(normalize_package_name("Requests"), "requests");
         assert_eq!(normalize_package_name("Flask_RESTful"), "flask-restful");
         assert_eq!(normalize_package_name("a__b--c..d"), "a-b-c-d");
-        assert_eq!(normalize_package_name("typing_extensions"), "typing-extensions");
+        assert_eq!(
+            normalize_package_name("typing_extensions"),
+            "typing-extensions"
+        );
     }
 }

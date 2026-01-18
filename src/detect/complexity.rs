@@ -29,10 +29,7 @@ struct FuncComplexity {
 ///
 /// Returns None if tree-sitter is not available or fails, allowing fallback to regex.
 #[cfg(feature = "tree-sitter")]
-fn calculate_complexities_treesitter(
-    file_path: &Path,
-    ext: &str,
-) -> Option<Vec<FuncComplexity>> {
+fn calculate_complexities_treesitter(file_path: &Path, ext: &str) -> Option<Vec<FuncComplexity>> {
     use crate::parser;
 
     // Get the extension with dot prefix for the registry
@@ -68,10 +65,7 @@ fn calculate_complexities_treesitter(
 
 /// Stub for when tree-sitter feature is not enabled.
 #[cfg(not(feature = "tree-sitter"))]
-fn calculate_complexities_treesitter(
-    _file_path: &Path,
-    _ext: &str,
-) -> Option<Vec<FuncComplexity>> {
+fn calculate_complexities_treesitter(_file_path: &Path, _ext: &str) -> Option<Vec<FuncComplexity>> {
     None
 }
 
@@ -140,10 +134,7 @@ pub fn detect_low_complexity<P1: AsRef<Path>, P2: AsRef<Path>>(
         };
 
         if !found {
-            let file = req
-                .file
-                .clone()
-                .unwrap_or_else(|| "(any file)".to_string());
+            let file = req.file.clone().unwrap_or_else(|| "(any file)".to_string());
             result.add_violation(Violation {
                 rule: ViolationRule::LowComplexity,
                 message: format!("symbol {:?} not found for complexity check", req.symbol),

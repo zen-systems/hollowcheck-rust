@@ -22,6 +22,12 @@ forbidden_patterns:
     description: "Python not implemented"
   - pattern: "throw new Error\\(\"not implemented"
     description: "JS/TS not implemented"
+  - pattern: "fatalError\\(\"not implemented"
+    description: "Swift fatalError not implemented"
+  - pattern: "\\?\\?\\?"
+    description: "Scala placeholder expression"
+  - pattern: "throw new NotImplementedError"
+    description: "Scala/Java not implemented exception"
 
 # Mock data patterns - detected in ALL files
 mock_signatures:

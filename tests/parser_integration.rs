@@ -46,23 +46,33 @@ func helper() int {
 
     // Check we found the expected symbols
     assert!(
-        symbols.iter().any(|s| s.name == "Version" && s.kind == "const"),
+        symbols
+            .iter()
+            .any(|s| s.name == "Version" && s.kind == "const"),
         "Expected Version const"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "Config" && s.kind == "type"),
+        symbols
+            .iter()
+            .any(|s| s.name == "Config" && s.kind == "type"),
         "Expected Config type"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "Validate" && s.kind == "method"),
+        symbols
+            .iter()
+            .any(|s| s.name == "Validate" && s.kind == "method"),
         "Expected Validate method"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "main" && s.kind == "function"),
+        symbols
+            .iter()
+            .any(|s| s.name == "main" && s.kind == "function"),
         "Expected main function"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "helper" && s.kind == "function"),
+        symbols
+            .iter()
+            .any(|s| s.name == "helper" && s.kind == "function"),
         "Expected helper function"
     );
 }
@@ -81,7 +91,9 @@ func simple() int {
 "#;
 
     let parser = parser::for_extension(".go").expect("Go parser should be available");
-    let complexity = parser.complexity(source, "simple").expect("should calculate complexity");
+    let complexity = parser
+        .complexity(source, "simple")
+        .expect("should calculate complexity");
 
     assert_eq!(complexity, 1, "Simple function should have complexity 1");
 }
@@ -105,7 +117,9 @@ func branchy(x int) int {
 "#;
 
     let parser = parser::for_extension(".go").expect("Go parser should be available");
-    let complexity = parser.complexity(source, "branchy").expect("should calculate complexity");
+    let complexity = parser
+        .complexity(source, "branchy")
+        .expect("should calculate complexity");
 
     // 1 (base) + 2 (if statements)
     assert!(complexity >= 3, "Expected >= 3, got {}", complexity);
@@ -130,7 +144,9 @@ func complex(x int) bool {
 "#;
 
     let parser = parser::for_extension(".go").expect("Go parser should be available");
-    let complexity = parser.complexity(source, "complex").expect("should calculate complexity");
+    let complexity = parser
+        .complexity(source, "complex")
+        .expect("should calculate complexity");
 
     // 1 (base) + 1 (for) + 1 (if) + 1 (&&) = 4
     assert!(complexity >= 4, "Expected >= 4, got {}", complexity);
@@ -164,20 +180,28 @@ async def async_function():
     let symbols = parser.parse_symbols(source).expect("should parse symbols");
 
     assert!(
-        symbols.iter().any(|s| s.name == "MyClass" && s.kind == "type"),
+        symbols
+            .iter()
+            .any(|s| s.name == "MyClass" && s.kind == "type"),
         "Expected MyClass"
     );
     // Python parser marks all function definitions as "function" (including methods)
     assert!(
-        symbols.iter().any(|s| s.name == "__init__" && s.kind == "function"),
+        symbols
+            .iter()
+            .any(|s| s.name == "__init__" && s.kind == "function"),
         "Expected __init__ function"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "greet" && s.kind == "function"),
+        symbols
+            .iter()
+            .any(|s| s.name == "greet" && s.kind == "function"),
         "Expected greet function"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "standalone_function" && s.kind == "function"),
+        symbols
+            .iter()
+            .any(|s| s.name == "standalone_function" && s.kind == "function"),
         "Expected standalone_function"
     );
 }
@@ -193,7 +217,9 @@ def simple():
 "#;
 
     let parser = parser::for_extension(".py").expect("Python parser should be available");
-    let complexity = parser.complexity(source, "simple").expect("should calculate complexity");
+    let complexity = parser
+        .complexity(source, "simple")
+        .expect("should calculate complexity");
 
     assert_eq!(complexity, 1, "Simple function should have complexity 1");
 }
@@ -214,7 +240,9 @@ def branchy(x):
 "#;
 
     let parser = parser::for_extension(".py").expect("Python parser should be available");
-    let complexity = parser.complexity(source, "branchy").expect("should calculate complexity");
+    let complexity = parser
+        .complexity(source, "branchy")
+        .expect("should calculate complexity");
 
     // 1 (base) + 1 (if) + 1 (elif)
     assert!(complexity >= 3, "Expected >= 3, got {}", complexity);
@@ -236,7 +264,9 @@ def loopy(items):
 "#;
 
     let parser = parser::for_extension(".py").expect("Python parser should be available");
-    let complexity = parser.complexity(source, "loopy").expect("should calculate complexity");
+    let complexity = parser
+        .complexity(source, "loopy")
+        .expect("should calculate complexity");
 
     // 1 (base) + 1 (for) + 1 (while)
     assert!(complexity >= 3, "Expected >= 3, got {}", complexity);
@@ -273,23 +303,33 @@ type StringArray = string[];
     let symbols = parser.parse_symbols(source).expect("should parse symbols");
 
     assert!(
-        symbols.iter().any(|s| s.name == "hello" && s.kind == "function"),
+        symbols
+            .iter()
+            .any(|s| s.name == "hello" && s.kind == "function"),
         "Expected hello function"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "MyClass" && s.kind == "type"),
+        symbols
+            .iter()
+            .any(|s| s.name == "MyClass" && s.kind == "type"),
         "Expected MyClass"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "method" && s.kind == "method"),
+        symbols
+            .iter()
+            .any(|s| s.name == "method" && s.kind == "method"),
         "Expected method"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "IConfig" && s.kind == "type"),
+        symbols
+            .iter()
+            .any(|s| s.name == "IConfig" && s.kind == "type"),
         "Expected IConfig interface"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "StringArray" && s.kind == "type"),
+        symbols
+            .iter()
+            .any(|s| s.name == "StringArray" && s.kind == "type"),
         "Expected StringArray type"
     );
 }
@@ -306,7 +346,9 @@ function simple(): number {
 "#;
 
     let parser = parser::for_extension(".ts").expect("TypeScript parser should be available");
-    let complexity = parser.complexity(source, "simple").expect("should calculate complexity");
+    let complexity = parser
+        .complexity(source, "simple")
+        .expect("should calculate complexity");
 
     assert_eq!(complexity, 1, "Simple function should have complexity 1");
 }
@@ -328,7 +370,9 @@ function branchy(x: number): number {
 "#;
 
     let parser = parser::for_extension(".ts").expect("TypeScript parser should be available");
-    let complexity = parser.complexity(source, "branchy").expect("should calculate complexity");
+    let complexity = parser
+        .complexity(source, "branchy")
+        .expect("should calculate complexity");
 
     // 1 (base) + 2 (if statements)
     assert!(complexity >= 3, "Expected >= 3, got {}", complexity);
@@ -349,7 +393,9 @@ function add(a, b) {
     let symbols = parser.parse_symbols(source).expect("should parse symbols");
 
     assert!(
-        symbols.iter().any(|s| s.name == "add" && s.kind == "function"),
+        symbols
+            .iter()
+            .any(|s| s.name == "add" && s.kind == "function"),
         "Expected add function"
     );
 }
@@ -388,23 +434,33 @@ enum Status {
     let symbols = parser.parse_symbols(source).expect("should parse symbols");
 
     assert!(
-        symbols.iter().any(|s| s.name == "MyClass" && s.kind == "type"),
+        symbols
+            .iter()
+            .any(|s| s.name == "MyClass" && s.kind == "type"),
         "Expected MyClass"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "method" && s.kind == "method"),
+        symbols
+            .iter()
+            .any(|s| s.name == "method" && s.kind == "method"),
         "Expected method"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "calculate" && s.kind == "method"),
+        symbols
+            .iter()
+            .any(|s| s.name == "calculate" && s.kind == "method"),
         "Expected calculate"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "MyInterface" && s.kind == "type"),
+        symbols
+            .iter()
+            .any(|s| s.name == "MyInterface" && s.kind == "type"),
         "Expected MyInterface"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "Status" && s.kind == "type"),
+        symbols
+            .iter()
+            .any(|s| s.name == "Status" && s.kind == "type"),
         "Expected Status enum"
     );
 }
@@ -423,7 +479,9 @@ public class Test {
 "#;
 
     let parser = parser::for_extension(".java").expect("Java parser should be available");
-    let complexity = parser.complexity(source, "simple").expect("should calculate complexity");
+    let complexity = parser
+        .complexity(source, "simple")
+        .expect("should calculate complexity");
 
     assert_eq!(complexity, 1, "Simple method should have complexity 1");
 }
@@ -448,7 +506,9 @@ public class Test {
 "#;
 
     let parser = parser::for_extension(".java").expect("Java parser should be available");
-    let complexity = parser.complexity(source, "branchy").expect("should calculate complexity");
+    let complexity = parser
+        .complexity(source, "branchy")
+        .expect("should calculate complexity");
 
     // 1 (base) + 2 (if statements)
     assert!(complexity >= 3, "Expected >= 3, got {}", complexity);
@@ -469,23 +529,33 @@ fn test_testdata_clean_go_symbols() {
 
     // Check key symbols from clean.go
     assert!(
-        symbols.iter().any(|s| s.name == "Config" && s.kind == "type"),
+        symbols
+            .iter()
+            .any(|s| s.name == "Config" && s.kind == "type"),
         "Expected Config type"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "MaxConnections" && s.kind == "const"),
+        symbols
+            .iter()
+            .any(|s| s.name == "MaxConnections" && s.kind == "const"),
         "Expected MaxConnections const"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "Validate" && s.kind == "method"),
+        symbols
+            .iter()
+            .any(|s| s.name == "Validate" && s.kind == "method"),
         "Expected Validate method"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "ProcessItems" && s.kind == "function"),
+        symbols
+            .iter()
+            .any(|s| s.name == "ProcessItems" && s.kind == "function"),
         "Expected ProcessItems function"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "CalculateScore" && s.kind == "function"),
+        symbols
+            .iter()
+            .any(|s| s.name == "CalculateScore" && s.kind == "function"),
         "Expected CalculateScore function"
     );
 }
@@ -540,23 +610,33 @@ fn test_testdata_stub_go_symbols() {
 
     // Check key symbols from stub.go
     assert!(
-        symbols.iter().any(|s| s.name == "StubConfig" && s.kind == "type"),
+        symbols
+            .iter()
+            .any(|s| s.name == "StubConfig" && s.kind == "type"),
         "Expected StubConfig type"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "DefaultTimeout" && s.kind == "const"),
+        symbols
+            .iter()
+            .any(|s| s.name == "DefaultTimeout" && s.kind == "const"),
         "Expected DefaultTimeout const"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "ProcessData" && s.kind == "function"),
+        symbols
+            .iter()
+            .any(|s| s.name == "ProcessData" && s.kind == "function"),
         "Expected ProcessData function"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "ValidateInput" && s.kind == "function"),
+        symbols
+            .iter()
+            .any(|s| s.name == "ValidateInput" && s.kind == "function"),
         "Expected ValidateInput function"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "HandleRequest" && s.kind == "function"),
+        symbols
+            .iter()
+            .any(|s| s.name == "HandleRequest" && s.kind == "function"),
         "Expected HandleRequest function"
     );
 }
@@ -601,19 +681,27 @@ fn test_testdata_mock_go_symbols() {
 
     // Check key symbols from mock.go
     assert!(
-        symbols.iter().any(|s| s.name == "MockUser" && s.kind == "type"),
+        symbols
+            .iter()
+            .any(|s| s.name == "MockUser" && s.kind == "type"),
         "Expected MockUser type"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "MockConfig" && s.kind == "type"),
+        symbols
+            .iter()
+            .any(|s| s.name == "MockConfig" && s.kind == "type"),
         "Expected MockConfig type"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "GetTestUser" && s.kind == "function"),
+        symbols
+            .iter()
+            .any(|s| s.name == "GetTestUser" && s.kind == "function"),
         "Expected GetTestUser function"
     );
     assert!(
-        symbols.iter().any(|s| s.name == "GetDescription" && s.kind == "function"),
+        symbols
+            .iter()
+            .any(|s| s.name == "GetDescription" && s.kind == "function"),
         "Expected GetDescription function"
     );
 }
@@ -663,7 +751,8 @@ fn test_parser_language_names() {
     ];
 
     for (ext, expected_lang) in cases {
-        let parser = parser::for_extension(ext).expect(&format!("Parser for {} should exist", ext));
+        let parser =
+            parser::for_extension(ext).unwrap_or_else(|| panic!("Parser for {} should exist", ext));
         assert_eq!(
             parser.language(),
             expected_lang,
@@ -707,7 +796,9 @@ fn test_empty_source() {
     let source = b"";
     let parser = parser::for_extension(".go").expect("Go parser should be available");
 
-    let symbols = parser.parse_symbols(source).expect("should handle empty source");
+    let symbols = parser
+        .parse_symbols(source)
+        .expect("should handle empty source");
     assert!(symbols.is_empty(), "Empty source should have no symbols");
 }
 
@@ -730,5 +821,8 @@ func broken( {
     // Tree-sitter is generally resilient to syntax errors
     // It should still be able to parse something
     let result = parser.parse_symbols(source);
-    assert!(result.is_ok(), "Parser should handle syntax errors gracefully");
+    assert!(
+        result.is_ok(),
+        "Parser should handle syntax errors gracefully"
+    );
 }

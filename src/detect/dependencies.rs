@@ -143,9 +143,7 @@ pub fn detect_hallucinated_dependencies(
 
     // Check each unique package
     let runtime = tokio::runtime::Runtime::new()?;
-    let violations = runtime.block_on(async {
-        check_packages(&client, unique_imports).await
-    });
+    let violations = runtime.block_on(async { check_packages(&client, unique_imports).await });
 
     for v in violations {
         result.add_violation(v);
@@ -215,10 +213,7 @@ async fn check_packages(
                     for loc in &locations {
                         violations.push(Violation {
                             rule: ViolationRule::HallucinatedDependency,
-                            message: format!(
-                                "registry error checking \"{}\": {}",
-                                package, e
-                            ),
+                            message: format!("registry error checking \"{}\": {}", package, e),
                             file: loc.file.clone(),
                             line: loc.line,
                             severity: Severity::Warning,

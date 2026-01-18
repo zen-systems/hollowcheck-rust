@@ -353,11 +353,21 @@ pub fn run_init(args: &InitArgs) -> anyhow::Result<i32> {
     }
 
     // Success message
-    println!("Created {} from template '{}'", args.output.display(), template.name);
+    println!(
+        "Created {} from template '{}'",
+        args.output.display(),
+        template.name
+    );
     println!();
     println!("Next steps:");
-    println!("  1. Edit {} to customize for your project", args.output.display());
-    println!("  2. Run: hollowcheck lint . --contract {}", args.output.display());
+    println!(
+        "  1. Edit {} to customize for your project",
+        args.output.display()
+    );
+    println!(
+        "  2. Run: hollowcheck lint . --contract {}",
+        args.output.display()
+    );
 
     Ok(EXIT_SUCCESS)
 }

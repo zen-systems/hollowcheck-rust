@@ -7,6 +7,7 @@ mod imports;
 mod mocks;
 mod patterns;
 mod runner;
+mod stdlib;
 mod suppress;
 mod symbols;
 mod types;
@@ -19,8 +20,8 @@ pub use mocks::detect_mock_data;
 pub use patterns::detect_forbidden_patterns;
 pub use runner::Runner;
 pub use suppress::{
-    collect_suppressions, filter_suppressed, parse_suppressions, Suppression, SuppressionType,
-    SuppressedViolation,
+    collect_suppressions, filter_suppressed, parse_suppressions, SuppressedViolation, Suppression,
+    SuppressionType,
 };
 pub use symbols::{detect_missing_symbols, detect_missing_tests};
 pub use types::{DetectionResult, Severity, Violation, ViolationRule};

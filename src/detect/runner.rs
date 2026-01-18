@@ -57,8 +57,7 @@ impl Runner {
         result.merge(symbol_result);
 
         // Check complexity requirements
-        let complexity_result =
-            detect_low_complexity(&self.base_dir, files, &contract.complexity)?;
+        let complexity_result = detect_low_complexity(&self.base_dir, files, &contract.complexity)?;
         result.merge(complexity_result);
 
         // Check required tests

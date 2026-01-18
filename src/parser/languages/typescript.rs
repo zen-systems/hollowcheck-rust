@@ -78,7 +78,7 @@ static SYMBOL_CAPTURES: &[SymbolCapture] = &[
 /// Create a new TypeScript parser.
 pub fn new_typescript_parser() -> Box<dyn Parser> {
     Box::new(TreeSitterParser::new(Config {
-        language: tree_sitter_typescript::language_typescript(),
+        language: tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
         language_name: "typescript",
         symbol_query: SYMBOL_QUERY,
         symbol_captures: SYMBOL_CAPTURES,
@@ -92,7 +92,7 @@ pub fn new_typescript_parser() -> Box<dyn Parser> {
 /// Create a new JavaScript parser (uses TypeScript parser with JSX support).
 pub fn new_javascript_parser() -> Box<dyn Parser> {
     Box::new(TreeSitterParser::new(Config {
-        language: tree_sitter_typescript::language_tsx(),
+        language: tree_sitter_typescript::LANGUAGE_TSX.into(),
         language_name: "javascript",
         symbol_query: SYMBOL_QUERY,
         symbol_captures: SYMBOL_CAPTURES,
@@ -139,23 +139,33 @@ type StringArray = string[];
         let symbols = parser.parse_symbols(source).unwrap();
 
         assert!(
-            symbols.iter().any(|s| s.name == "hello" && s.kind == "function"),
+            symbols
+                .iter()
+                .any(|s| s.name == "hello" && s.kind == "function"),
             "Expected hello function"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "MyClass" && s.kind == "type"),
+            symbols
+                .iter()
+                .any(|s| s.name == "MyClass" && s.kind == "type"),
             "Expected MyClass"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "method" && s.kind == "method"),
+            symbols
+                .iter()
+                .any(|s| s.name == "method" && s.kind == "method"),
             "Expected method"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "IConfig" && s.kind == "type"),
+            symbols
+                .iter()
+                .any(|s| s.name == "IConfig" && s.kind == "type"),
             "Expected IConfig interface"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "StringArray" && s.kind == "type"),
+            symbols
+                .iter()
+                .any(|s| s.name == "StringArray" && s.kind == "type"),
             "Expected StringArray type"
         );
     }
@@ -269,11 +279,15 @@ class MyClass {
         let symbols = parser.parse_symbols(source).unwrap();
 
         assert!(
-            symbols.iter().any(|s| s.name == "hello" && s.kind == "function"),
+            symbols
+                .iter()
+                .any(|s| s.name == "hello" && s.kind == "function"),
             "Expected hello function"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "MyClass" && s.kind == "type"),
+            symbols
+                .iter()
+                .any(|s| s.name == "MyClass" && s.kind == "type"),
             "Expected MyClass"
         );
     }

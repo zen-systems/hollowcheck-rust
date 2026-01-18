@@ -86,7 +86,7 @@ static SYMBOL_CAPTURES: &[SymbolCapture] = &[
 /// Create a new Rust parser.
 pub fn new_parser() -> Box<dyn Parser> {
     Box::new(TreeSitterParser::new(Config {
-        language: tree_sitter_rust::language(),
+        language: tree_sitter_rust::LANGUAGE.into(),
         language_name: "rust",
         symbol_query: SYMBOL_QUERY,
         symbol_captures: SYMBOL_CAPTURES,
@@ -145,28 +145,40 @@ fn helper() -> i32 {
         let symbols = parser.parse_symbols(source).unwrap();
 
         assert!(
-            symbols.iter().any(|s| s.name == "VERSION" && s.kind == "const"),
+            symbols
+                .iter()
+                .any(|s| s.name == "VERSION" && s.kind == "const"),
             "Expected VERSION const, got: {:?}",
             symbols
         );
         assert!(
-            symbols.iter().any(|s| s.name == "Config" && s.kind == "type"),
+            symbols
+                .iter()
+                .any(|s| s.name == "Config" && s.kind == "type"),
             "Expected Config struct"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "Status" && s.kind == "type"),
+            symbols
+                .iter()
+                .any(|s| s.name == "Status" && s.kind == "type"),
             "Expected Status enum"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "Processor" && s.kind == "type"),
+            symbols
+                .iter()
+                .any(|s| s.name == "Processor" && s.kind == "type"),
             "Expected Processor trait"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "main" && s.kind == "function"),
+            symbols
+                .iter()
+                .any(|s| s.name == "main" && s.kind == "function"),
             "Expected main function"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "helper" && s.kind == "function"),
+            symbols
+                .iter()
+                .any(|s| s.name == "helper" && s.kind == "function"),
             "Expected helper function"
         );
     }

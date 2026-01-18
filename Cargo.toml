@@ -26,12 +26,16 @@ tree-sitter = [
     "dep:tree-sitter-c",
     "dep:tree-sitter-cpp",
     "dep:tree-sitter-javascript",
-    "dep:tree-sitter-kotlin",
+    # "dep:tree-sitter-kotlin", # Disabled: incompatible with tree-sitter 0.24
     "dep:tree-sitter-rust",
+    "dep:tree-sitter-scala",
+    "dep:tree-sitter-swift",
+    # "dep:tree-sitter-hcl", # Disabled: requires ABI 15, tree-sitter 0.24 supports 13-14
 ]
 
 [dependencies]
 anyhow = "1.0"
+streaming-iterator = "0.1"
 clap = { version = "4.4", features = ["derive"] }
 colored = "2.1"
 directories = "5"
@@ -47,16 +51,21 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 walkdir = "2.4"
 
 # Tree-sitter dependencies (optional, enabled by default)
-tree-sitter = { version = "0.22", optional = true }
-tree-sitter-python = { version = "0.21", optional = true }
-tree-sitter-typescript = { version = "0.21", optional = true }
-tree-sitter-java = { version = "0.21", optional = true }
-tree-sitter-go = { version = "0.21", optional = true }
-tree-sitter-c = { version = "0.21", optional = true }
-tree-sitter-cpp = { version = "0.22", optional = true }
-tree-sitter-javascript = { version = "0.21", optional = true }
-tree-sitter-kotlin = { version = "0.3", optional = true }
-tree-sitter-rust = { version = "0.21", optional = true }
+tree-sitter = { version = "0.24", optional = true }
+tree-sitter-python = { version = "0.23", optional = true }
+tree-sitter-typescript = { version = "0.23", optional = true }
+tree-sitter-java = { version = "0.23", optional = true }
+tree-sitter-go = { version = "0.23", optional = true }
+tree-sitter-c = { version = "0.23", optional = true }
+tree-sitter-cpp = { version = "0.23", optional = true }
+tree-sitter-javascript = { version = "0.23", optional = true }
+# tree-sitter-kotlin disabled: requires tree-sitter 0.20, conflicts with 0.24
+# tree-sitter-kotlin = { version = "0.3", optional = true }
+tree-sitter-rust = { version = "0.23", optional = true }
+tree-sitter-scala = { version = "0.23", optional = true }
+tree-sitter-swift = { version = "0.6", optional = true }
+# tree-sitter-hcl disabled: version 1.1 requires ABI 15, tree-sitter 0.24 supports 13-14
+# tree-sitter-hcl = { version = "1.1", optional = true }
 
 [dev-dependencies]
 tempfile = "3.10"

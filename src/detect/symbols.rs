@@ -60,7 +60,10 @@ pub fn detect_missing_symbols<P1: AsRef<Path>, P2: AsRef<Path>>(
     for req in symbols {
         let found = found_symbols
             .get(&req.file)
-            .map(|syms| syms.iter().any(|s| s.name == req.name && s.kind == req.kind))
+            .map(|syms| {
+                syms.iter()
+                    .any(|s| s.name == req.name && s.kind == req.kind)
+            })
             .unwrap_or(false);
 
         if !found {
@@ -136,7 +139,10 @@ pub fn detect_missing_tests<P1: AsRef<Path>, P2: AsRef<Path>>(
         };
 
         if !found {
-            let file = req.file.clone().unwrap_or_else(|| "(any test file)".to_string());
+            let file = req
+                .file
+                .clone()
+                .unwrap_or_else(|| "(any test file)".to_string());
             result.add_violation(Violation {
                 rule: ViolationRule::MissingTest,
                 message: format!("required test {:?} not found", req.name),
@@ -361,7 +367,9 @@ fn extract_symbols_js_regex(file_path: &Path) -> anyhow::Result<Vec<SymbolInfo>>
 
     // Function patterns
     let func_re = Regex::new(r"(?m)(?:^|\s)(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*[<(]")?;
-    let arrow_re = Regex::new(r"(?m)(?:^|\s)(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?(?:\([^)]*\)|[^=])\s*=>")?;
+    let arrow_re = Regex::new(
+        r"(?m)(?:^|\s)(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?(?:\([^)]*\)|[^=])\s*=>",
+    )?;
     // Class pattern
     let class_re = Regex::new(r"(?m)(?:^|\s)(?:export\s+)?class\s+(\w+)")?;
     // Type/interface pattern (TypeScript)
@@ -447,7 +455,9 @@ fn extract_symbols_java_regex(file_path: &Path) -> anyhow::Result<Vec<SymbolInfo
     // Enum pattern
     let enum_re = Regex::new(r"(?m)(?:public\s+)?enum\s+(\w+)")?;
     // Method pattern
-    let method_re = Regex::new(r"(?m)\s+(?:public|private|protected)?\s*(?:static\s+)?(?:\w+(?:<[^>]+>)?)\s+(\w+)\s*\(")?;
+    let method_re = Regex::new(
+        r"(?m)\s+(?:public|private|protected)?\s*(?:static\s+)?(?:\w+(?:<[^>]+>)?)\s+(\w+)\s*\(",
+    )?;
 
     for (line_num, line) in content.lines().enumerate() {
         let line_number = line_num + 1;
@@ -526,10 +536,18 @@ func main() {}
         .unwrap();
 
         let symbols = extract_symbols_go_regex(&file_path).unwrap();
-        assert!(symbols.iter().any(|s| s.name == "Version" && s.kind == SymbolKind::Const));
-        assert!(symbols.iter().any(|s| s.name == "Handler" && s.kind == SymbolKind::Type));
-        assert!(symbols.iter().any(|s| s.name == "Handle" && s.kind == SymbolKind::Method));
-        assert!(symbols.iter().any(|s| s.name == "main" && s.kind == SymbolKind::Function));
+        assert!(symbols
+            .iter()
+            .any(|s| s.name == "Version" && s.kind == SymbolKind::Const));
+        assert!(symbols
+            .iter()
+            .any(|s| s.name == "Handler" && s.kind == SymbolKind::Type));
+        assert!(symbols
+            .iter()
+            .any(|s| s.name == "Handle" && s.kind == SymbolKind::Method));
+        assert!(symbols
+            .iter()
+            .any(|s| s.name == "main" && s.kind == SymbolKind::Function));
     }
 
     #[test]

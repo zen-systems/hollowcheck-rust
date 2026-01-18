@@ -286,7 +286,9 @@ mod tests {
         result.add_violation(make_violation(ViolationRule::ForbiddenPattern));
         result.add_violation(make_violation(ViolationRule::ForbiddenPattern));
         // New violations (only these should count)
-        result.new_violations.push(make_violation(ViolationRule::MockData)); // 3 points
+        result
+            .new_violations
+            .push(make_violation(ViolationRule::MockData)); // 3 points
 
         let score = calculate_for_new_violations(&result, 0);
         assert_eq!(score.score, 3);

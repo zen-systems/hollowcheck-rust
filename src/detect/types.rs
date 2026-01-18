@@ -169,7 +169,9 @@ impl DetectionResult {
 
     /// Check if there are any error-severity violations.
     pub fn has_errors(&self) -> bool {
-        self.violations.iter().any(|v| v.severity == Severity::Error)
+        self.violations
+            .iter()
+            .any(|v| v.severity == Severity::Error)
     }
 
     /// Number of new violations (baseline mode).

@@ -64,8 +64,14 @@ static SYMBOL_CAPTURES: &[SymbolCapture] = &[
 
 /// Create a new Kotlin parser.
 pub fn new_parser() -> Box<dyn Parser> {
+    // tree-sitter-kotlin uses an older tree-sitter version, so we need to
+    // transmute the Language type. This is safe because both versions use
+    // the same underlying C FFI layout.
+    let lang = unsafe {
+        std::mem::transmute::<_, tree_sitter::Language>(tree_sitter_kotlin::language())
+    };
     Box::new(TreeSitterParser::new(Config {
-        language: tree_sitter_kotlin::language(),
+        language: lang,
         language_name: "kotlin",
         symbol_query: SYMBOL_QUERY,
         symbol_captures: SYMBOL_CAPTURES,

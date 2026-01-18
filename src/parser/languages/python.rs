@@ -61,7 +61,7 @@ static SYMBOL_CAPTURES: &[SymbolCapture] = &[
 /// Create a new Python parser.
 pub fn new_parser() -> Box<dyn Parser> {
     Box::new(TreeSitterParser::new(Config {
-        language: tree_sitter_python::language(),
+        language: tree_sitter_python::LANGUAGE.into(),
         language_name: "python",
         symbol_query: SYMBOL_QUERY,
         symbol_captures: SYMBOL_CAPTURES,
@@ -106,21 +106,29 @@ class AnotherClass:
 
         // Should find functions
         assert!(
-            symbols.iter().any(|s| s.name == "hello" && s.kind == "function"),
+            symbols
+                .iter()
+                .any(|s| s.name == "hello" && s.kind == "function"),
             "Expected hello function"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "world" && s.kind == "function"),
+            symbols
+                .iter()
+                .any(|s| s.name == "world" && s.kind == "function"),
             "Expected world function"
         );
 
         // Should find classes
         assert!(
-            symbols.iter().any(|s| s.name == "MyClass" && s.kind == "type"),
+            symbols
+                .iter()
+                .any(|s| s.name == "MyClass" && s.kind == "type"),
             "Expected MyClass"
         );
         assert!(
-            symbols.iter().any(|s| s.name == "AnotherClass" && s.kind == "type"),
+            symbols
+                .iter()
+                .any(|s| s.name == "AnotherClass" && s.kind == "type"),
             "Expected AnotherClass"
         );
     }
@@ -152,11 +160,7 @@ def branchy(x):
 
         let complexity = parser.complexity(source, "branchy").unwrap();
         // 1 (base) + 1 (if) + 1 (elif) = 3
-        assert!(
-            complexity >= 3,
-            "Expected >= 3, got {}",
-            complexity
-        );
+        assert!(complexity >= 3, "Expected >= 3, got {}", complexity);
     }
 
     #[test]
@@ -174,11 +178,7 @@ def loopy(items):
 
         let complexity = parser.complexity(source, "loopy").unwrap();
         // 1 (base) + 1 (for) + 1 (while) = 3
-        assert!(
-            complexity >= 3,
-            "Expected >= 3, got {}",
-            complexity
-        );
+        assert!(complexity >= 3, "Expected >= 3, got {}", complexity);
     }
 
     #[test]
@@ -195,11 +195,7 @@ def check(a, b, c):
 
         let complexity = parser.complexity(source, "check").unwrap();
         // 1 (base) + 2 (if) + 1 (and) + 1 (or) = 5
-        assert!(
-            complexity >= 5,
-            "Expected >= 5, got {}",
-            complexity
-        );
+        assert!(complexity >= 5, "Expected >= 5, got {}", complexity);
     }
 
     #[test]
@@ -213,11 +209,7 @@ def comprehend(items):
         let complexity = parser.complexity(source, "comprehend").unwrap();
         // 1 (base) + 1 (list_comprehension) = 2
         // Note: the `if` inside comprehension might also count
-        assert!(
-            complexity >= 2,
-            "Expected >= 2, got {}",
-            complexity
-        );
+        assert!(complexity >= 2, "Expected >= 2, got {}", complexity);
     }
 
     #[test]

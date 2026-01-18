@@ -62,7 +62,10 @@ mod tests {
 
     #[test]
     fn test_encode_module_path() {
-        assert_eq!(encode_module_path("github.com/user/repo"), "github.com/user/repo");
+        assert_eq!(
+            encode_module_path("github.com/user/repo"),
+            "github.com/user/repo"
+        );
         assert_eq!(
             encode_module_path("github.com/Azure/azure-sdk-for-go"),
             "github.com/!azure/azure-sdk-for-go"

@@ -24,10 +24,7 @@ pub fn detect_missing_files<P: AsRef<Path>>(
                 if metadata.is_dir() {
                     result.add_violation(Violation {
                         rule: ViolationRule::MissingFile,
-                        message: format!(
-                            "required file {:?} is a directory, not a file",
-                            f.path
-                        ),
+                        message: format!("required file {:?} is a directory, not a file", f.path),
                         file: f.path.clone(),
                         line: 0,
                         severity: Severity::Error,

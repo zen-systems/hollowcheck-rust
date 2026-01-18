@@ -6,9 +6,9 @@
 use std::path::PathBuf;
 
 use hollowcheck::contract::Contract;
-use hollowcheck::detect::{Runner, Severity, Violation, ViolationRule, DetectionResult};
+use hollowcheck::detect::Runner;
 use hollowcheck::parser;
-use hollowcheck::report::{JsonReport, JsonViolation, BreakdownEntry};
+use hollowcheck::report::{BreakdownEntry, JsonReport, JsonViolation};
 use hollowcheck::score;
 
 fn testdata_path() -> PathBuf {
@@ -35,7 +35,9 @@ fn run_and_get_json() -> JsonReport {
         .collect();
 
     let runner = Runner::new(&testdata);
-    let result = runner.run(&files, &contract).expect("detection should succeed");
+    let result = runner
+        .run(&files, &contract)
+        .expect("detection should succeed");
     let hollowness = score::calculate(&result, &contract);
 
     // Build JSON report manually to test the structure
@@ -206,25 +208,61 @@ fn test_json_field_names_match_go() {
     // Verify field names match Go version exactly
     assert!(json.contains("\"version\""), "should have 'version' field");
     assert!(json.contains("\"path\""), "should have 'path' field");
-    assert!(json.contains("\"contract\""), "should have 'contract' field");
+    assert!(
+        json.contains("\"contract\""),
+        "should have 'contract' field"
+    );
     assert!(json.contains("\"score\""), "should have 'score' field");
     assert!(json.contains("\"grade\""), "should have 'grade' field");
-    assert!(json.contains("\"threshold\""), "should have 'threshold' field");
+    assert!(
+        json.contains("\"threshold\""),
+        "should have 'threshold' field"
+    );
     assert!(json.contains("\"passed\""), "should have 'passed' field");
-    assert!(json.contains("\"files_scanned\""), "should have 'files_scanned' field");
-    assert!(json.contains("\"violations\""), "should have 'violations' field");
-    assert!(json.contains("\"suppressed_count\""), "should have 'suppressed_count' field");
-    assert!(json.contains("\"breakdown\""), "should have 'breakdown' field");
+    assert!(
+        json.contains("\"files_scanned\""),
+        "should have 'files_scanned' field"
+    );
+    assert!(
+        json.contains("\"violations\""),
+        "should have 'violations' field"
+    );
+    assert!(
+        json.contains("\"suppressed_count\""),
+        "should have 'suppressed_count' field"
+    );
+    assert!(
+        json.contains("\"breakdown\""),
+        "should have 'breakdown' field"
+    );
 
     // Violation fields
-    assert!(json.contains("\"rule\""), "violations should have 'rule' field");
-    assert!(json.contains("\"severity\""), "violations should have 'severity' field");
-    assert!(json.contains("\"file\""), "violations should have 'file' field");
-    assert!(json.contains("\"line\""), "violations should have 'line' field");
-    assert!(json.contains("\"message\""), "violations should have 'message' field");
+    assert!(
+        json.contains("\"rule\""),
+        "violations should have 'rule' field"
+    );
+    assert!(
+        json.contains("\"severity\""),
+        "violations should have 'severity' field"
+    );
+    assert!(
+        json.contains("\"file\""),
+        "violations should have 'file' field"
+    );
+    assert!(
+        json.contains("\"line\""),
+        "violations should have 'line' field"
+    );
+    assert!(
+        json.contains("\"message\""),
+        "violations should have 'message' field"
+    );
 
     // Breakdown fields
-    assert!(json.contains("\"points\""), "breakdown should have 'points' field");
+    assert!(
+        json.contains("\"points\""),
+        "breakdown should have 'points' field"
+    );
 }
 
 /// Test that violations from testdata match expected patterns.

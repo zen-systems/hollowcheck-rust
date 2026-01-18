@@ -3,6 +3,7 @@
 //! Extracts package imports using tree-sitter parsers and regex fallback.
 //! Supports Python, JavaScript/TypeScript, Go, and Rust.
 
+use super::stdlib::{is_stdlib, StdlibLanguage};
 use crate::registry::RegistryType;
 use regex::Regex;
 use std::collections::HashSet;
@@ -24,10 +25,7 @@ pub struct ImportedDependency {
 
 /// Extract all imports from a source file.
 pub fn extract_imports(file_path: &Path) -> anyhow::Result<Vec<ImportedDependency>> {
-    let ext = file_path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("");
+    let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
     let content = fs::read_to_string(file_path)?;
     let file_str = file_path.to_string_lossy().to_string();
@@ -70,7 +68,7 @@ fn extract_python_imports(content: &str, file: &str) -> Vec<ImportedDependency> 
         // import foo
         if let Some(caps) = IMPORT_RE.captures(trimmed) {
             let name = caps.get(1).unwrap().as_str().to_string();
-            if !is_python_stdlib(&name) && seen.insert(name.clone()) {
+            if !is_stdlib(StdlibLanguage::Python, &name) && seen.insert(name.clone()) {
                 imports.push(ImportedDependency {
                     name,
                     registry: RegistryType::PyPI,
@@ -83,7 +81,7 @@ fn extract_python_imports(content: &str, file: &str) -> Vec<ImportedDependency> 
         // from foo import bar
         if let Some(caps) = FROM_IMPORT_RE.captures(trimmed) {
             let name = caps.get(1).unwrap().as_str().to_string();
-            if !is_python_stdlib(&name) && seen.insert(name.clone()) {
+            if !is_stdlib(StdlibLanguage::Python, &name) && seen.insert(name.clone()) {
                 imports.push(ImportedDependency {
                     name,
                     registry: RegistryType::PyPI,
@@ -95,44 +93,6 @@ fn extract_python_imports(content: &str, file: &str) -> Vec<ImportedDependency> 
     }
 
     imports
-}
-
-/// Check if a Python module is part of the standard library.
-fn is_python_stdlib(name: &str) -> bool {
-    const STDLIB: &[&str] = &[
-        "abc", "aifc", "argparse", "array", "ast", "asynchat", "asyncio", "asyncore",
-        "atexit", "audioop", "base64", "bdb", "binascii", "binhex", "bisect",
-        "builtins", "bz2", "calendar", "cgi", "cgitb", "chunk", "cmath", "cmd",
-        "code", "codecs", "codeop", "collections", "colorsys", "compileall",
-        "concurrent", "configparser", "contextlib", "contextvars", "copy",
-        "copyreg", "cProfile", "crypt", "csv", "ctypes", "curses", "dataclasses",
-        "datetime", "dbm", "decimal", "difflib", "dis", "distutils", "doctest",
-        "email", "encodings", "enum", "errno", "faulthandler", "fcntl", "filecmp",
-        "fileinput", "fnmatch", "fractions", "ftplib", "functools", "gc", "getopt",
-        "getpass", "gettext", "glob", "graphlib", "grp", "gzip", "hashlib", "heapq",
-        "hmac", "html", "http", "idlelib", "imaplib", "imghdr", "imp", "importlib",
-        "inspect", "io", "ipaddress", "itertools", "json", "keyword", "lib2to3",
-        "linecache", "locale", "logging", "lzma", "mailbox", "mailcap", "marshal",
-        "math", "mimetypes", "mmap", "modulefinder", "multiprocessing", "netrc",
-        "nis", "nntplib", "numbers", "operator", "optparse", "os", "ossaudiodev",
-        "pathlib", "pdb", "pickle", "pickletools", "pipes", "pkgutil", "platform",
-        "plistlib", "poplib", "posix", "posixpath", "pprint", "profile", "pstats",
-        "pty", "pwd", "py_compile", "pyclbr", "pydoc", "queue", "quopri", "random",
-        "re", "readline", "reprlib", "resource", "rlcompleter", "runpy", "sched",
-        "secrets", "select", "selectors", "shelve", "shlex", "shutil", "signal",
-        "site", "smtpd", "smtplib", "sndhdr", "socket", "socketserver", "spwd",
-        "sqlite3", "ssl", "stat", "statistics", "string", "stringprep", "struct",
-        "subprocess", "sunau", "symtable", "sys", "sysconfig", "syslog", "tabnanny",
-        "tarfile", "telnetlib", "tempfile", "termios", "test", "textwrap", "threading",
-        "time", "timeit", "tkinter", "token", "tokenize", "trace", "traceback",
-        "tracemalloc", "tty", "turtle", "turtledemo", "types", "typing", "unicodedata",
-        "unittest", "urllib", "uu", "uuid", "venv", "warnings", "wave", "weakref",
-        "webbrowser", "winreg", "winsound", "wsgiref", "xdrlib", "xml", "xmlrpc",
-        "zipapp", "zipfile", "zipimport", "zlib", "zoneinfo",
-        // Underscore prefixed private modules
-        "_thread", "__future__",
-    ];
-    STDLIB.contains(&name)
 }
 
 /// Extract imports from JavaScript/TypeScript source code.
@@ -160,7 +120,7 @@ fn extract_js_imports(content: &str, file: &str) -> Vec<ImportedDependency> {
             let name = caps.get(1).or_else(|| caps.get(2));
             if let Some(m) = name {
                 let pkg = extract_npm_package_name(m.as_str());
-                if !is_node_builtin(&pkg) && seen.insert(pkg.clone()) {
+                if !is_stdlib(StdlibLanguage::JavaScript, &pkg) && seen.insert(pkg.clone()) {
                     imports.push(ImportedDependency {
                         name: pkg,
                         registry: RegistryType::Npm,
@@ -175,7 +135,7 @@ fn extract_js_imports(content: &str, file: &str) -> Vec<ImportedDependency> {
         for caps in REQUIRE_RE.captures_iter(line) {
             if let Some(m) = caps.get(1) {
                 let pkg = extract_npm_package_name(m.as_str());
-                if !is_node_builtin(&pkg) && seen.insert(pkg.clone()) {
+                if !is_stdlib(StdlibLanguage::JavaScript, &pkg) && seen.insert(pkg.clone()) {
                     imports.push(ImportedDependency {
                         name: pkg,
                         registry: RegistryType::Npm,
@@ -204,30 +164,12 @@ fn extract_npm_package_name(import_path: &str) -> String {
         }
     } else {
         // Regular package: pkg/subpath -> pkg
-        import_path.split('/').next().unwrap_or(import_path).to_string()
+        import_path
+            .split('/')
+            .next()
+            .unwrap_or(import_path)
+            .to_string()
     }
-}
-
-/// Check if a module is a Node.js builtin.
-fn is_node_builtin(name: &str) -> bool {
-    const BUILTINS: &[&str] = &[
-        "assert", "async_hooks", "buffer", "child_process", "cluster", "console",
-        "constants", "crypto", "dgram", "diagnostics_channel", "dns", "domain",
-        "events", "fs", "http", "http2", "https", "inspector", "module", "net",
-        "os", "path", "perf_hooks", "process", "punycode", "querystring", "readline",
-        "repl", "stream", "string_decoder", "sys", "timers", "tls", "trace_events",
-        "tty", "url", "util", "v8", "vm", "wasi", "worker_threads", "zlib",
-        // node: protocol prefix
-        "node:assert", "node:buffer", "node:child_process", "node:cluster",
-        "node:console", "node:crypto", "node:dgram", "node:dns", "node:events",
-        "node:fs", "node:http", "node:http2", "node:https", "node:inspector",
-        "node:module", "node:net", "node:os", "node:path", "node:perf_hooks",
-        "node:process", "node:querystring", "node:readline", "node:repl",
-        "node:stream", "node:string_decoder", "node:timers", "node:tls", "node:tty",
-        "node:url", "node:util", "node:v8", "node:vm", "node:wasi",
-        "node:worker_threads", "node:zlib",
-    ];
-    BUILTINS.contains(&name) || name.starts_with("node:")
 }
 
 /// Extract imports from Go source code.
@@ -266,7 +208,7 @@ fn extract_go_imports(content: &str, file: &str) -> Vec<ImportedDependency> {
     for caps in SINGLE_IMPORT_RE.captures_iter(content) {
         if let Some(m) = caps.get(1) {
             let import_path = m.as_str();
-            if is_external_go_import(import_path) {
+            if !is_stdlib(StdlibLanguage::Go, import_path) {
                 let pkg = extract_go_module_name(import_path);
                 if seen.insert(pkg.clone()) {
                     let line = line_map.get(import_path).copied().unwrap_or(1);
@@ -287,7 +229,7 @@ fn extract_go_imports(content: &str, file: &str) -> Vec<ImportedDependency> {
             for caps in BLOCK_ITEM_RE.captures_iter(block.as_str()) {
                 if let Some(m) = caps.get(1) {
                     let import_path = m.as_str();
-                    if is_external_go_import(import_path) {
+                    if !is_stdlib(StdlibLanguage::Go, import_path) {
                         let pkg = extract_go_module_name(import_path);
                         if seen.insert(pkg.clone()) {
                             let line = line_map.get(import_path).copied().unwrap_or(1);
@@ -305,13 +247,6 @@ fn extract_go_imports(content: &str, file: &str) -> Vec<ImportedDependency> {
     }
 
     imports
-}
-
-/// Check if a Go import is external (not stdlib).
-fn is_external_go_import(path: &str) -> bool {
-    // External imports have a domain (contain a dot in the first segment)
-    // e.g., github.com/user/repo, golang.org/x/net
-    path.contains('.') && !path.starts_with('.')
 }
 
 /// Extract the module name from a Go import path.
@@ -350,7 +285,7 @@ fn extract_rust_imports(content: &str, file: &str) -> Vec<ImportedDependency> {
         // use statements
         if let Some(caps) = USE_RE.captures(trimmed) {
             let name = caps.get(1).unwrap().as_str().to_string();
-            if !is_rust_builtin(&name) && seen.insert(name.clone()) {
+            if !is_stdlib(StdlibLanguage::Rust, &name) && seen.insert(name.clone()) {
                 imports.push(ImportedDependency {
                     name,
                     registry: RegistryType::Crates,
@@ -363,7 +298,7 @@ fn extract_rust_imports(content: &str, file: &str) -> Vec<ImportedDependency> {
         // extern crate
         if let Some(caps) = EXTERN_CRATE_RE.captures(trimmed) {
             let name = caps.get(1).unwrap().as_str().to_string();
-            if !is_rust_builtin(&name) && seen.insert(name.clone()) {
+            if !is_stdlib(StdlibLanguage::Rust, &name) && seen.insert(name.clone()) {
                 imports.push(ImportedDependency {
                     name,
                     registry: RegistryType::Crates,
@@ -375,17 +310,6 @@ fn extract_rust_imports(content: &str, file: &str) -> Vec<ImportedDependency> {
     }
 
     imports
-}
-
-/// Check if a Rust crate is a builtin.
-fn is_rust_builtin(name: &str) -> bool {
-    const BUILTINS: &[&str] = &[
-        // Standard library and core crates
-        "std", "core", "alloc", "proc_macro", "test",
-        // Special crates
-        "self", "super", "crate",
-    ];
-    BUILTINS.contains(&name)
 }
 
 #[cfg(test)]
@@ -476,29 +400,5 @@ use anyhow::Result;
         assert!(!names.contains(&"std"));
     }
 
-    #[test]
-    fn test_is_python_stdlib() {
-        assert!(is_python_stdlib("os"));
-        assert!(is_python_stdlib("json"));
-        assert!(is_python_stdlib("typing"));
-        assert!(!is_python_stdlib("requests"));
-        assert!(!is_python_stdlib("flask"));
-    }
-
-    #[test]
-    fn test_is_node_builtin() {
-        assert!(is_node_builtin("fs"));
-        assert!(is_node_builtin("path"));
-        assert!(is_node_builtin("node:fs"));
-        assert!(!is_node_builtin("express"));
-        assert!(!is_node_builtin("lodash"));
-    }
-
-    #[test]
-    fn test_is_external_go_import() {
-        assert!(is_external_go_import("github.com/user/repo"));
-        assert!(is_external_go_import("golang.org/x/net"));
-        assert!(!is_external_go_import("fmt"));
-        assert!(!is_external_go_import("net/http"));
-    }
+    // Note: stdlib detection tests are in the stdlib module
 }

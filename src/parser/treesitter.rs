@@ -4,6 +4,8 @@
 //! for different languages via queries.
 
 #[cfg(feature = "tree-sitter")]
+use streaming_iterator::StreamingIterator;
+#[cfg(feature = "tree-sitter")]
 use tree_sitter::{Language, Parser as TsParser, Query, QueryCursor};
 
 use super::{Parser, Symbol};
@@ -71,9 +73,9 @@ impl TreeSitterParser {
 
         let query = Query::new(&self.config.language, self.config.function_query)?;
         let mut cursor = QueryCursor::new();
-        let matches = cursor.matches(&query, root, source);
+        let mut matches = cursor.matches(&query, root, source);
 
-        for m in matches {
+        while let Some(m) = matches.next() {
             let mut func_node = None;
             let mut func_name = None;
 
@@ -105,10 +107,10 @@ impl TreeSitterParser {
 
         let query = Query::new(&self.config.language, self.config.complexity_query)?;
         let mut cursor = QueryCursor::new();
-        let matches = cursor.matches(&query, node, source);
+        let mut matches = cursor.matches(&query, node, source);
 
         let mut complexity = 1; // Base complexity
-        for _ in matches {
+        while matches.next().is_some() {
             complexity += 1;
         }
 
@@ -127,11 +129,11 @@ impl Parser for TreeSitterParser {
 
         let query = Query::new(&self.config.language, self.config.symbol_query)?;
         let mut cursor = QueryCursor::new();
-        let matches = cursor.matches(&query, root, source);
+        let mut matches = cursor.matches(&query, root, source);
 
         let mut symbols = Vec::new();
 
-        for m in matches {
+        while let Some(m) = matches.next() {
             for sc in self.config.symbol_captures {
                 for capture in m.captures {
                     let capture_name = query.capture_names()[capture.index as usize];
@@ -173,6 +175,7 @@ impl Parser for TreeSitterParser {
 
 #[cfg(test)]
 mod tests {
+    #[allow(unused_imports)]
     use super::*;
 
     #[test]
@@ -191,8 +194,12 @@ class MyClass:
 "#;
 
         let symbols = parser.parse_symbols(source).unwrap();
-        assert!(symbols.iter().any(|s| s.name == "hello" && s.kind == "function"));
-        assert!(symbols.iter().any(|s| s.name == "MyClass" && s.kind == "type"));
+        assert!(symbols
+            .iter()
+            .any(|s| s.name == "hello" && s.kind == "function"));
+        assert!(symbols
+            .iter()
+            .any(|s| s.name == "MyClass" && s.kind == "type"));
         // Note: method extraction depends on query configuration
     }
 
