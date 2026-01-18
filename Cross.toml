@@ -1,0 +1,19 @@
+# Cross-compilation configuration for hollowcheck
+# See https://github.com/cross-rs/cross
+
+[build.env]
+passthrough = [
+    "RUST_BACKTRACE",
+]
+
+# Linux x86_64
+[target.x86_64-unknown-linux-gnu]
+
+# Linux ARM64
+[target.aarch64-unknown-linux-gnu]
+
+# Windows x86_64
+[target.x86_64-pc-windows-gnu]
+
+# macOS builds require native compilation or osxcross
+# These are typically built on macOS runners in CI

@@ -1,0 +1,92 @@
+# Hollowcheck Contract: Minimal
+# =============================
+# Bare minimum quality gate - catches obvious stubs and placeholder code.
+# Good starting point for any project. Customize by adding required_files,
+# required_symbols, and complexity requirements specific to your codebase.
+
+version: "1.0"
+name: "minimal"
+description: "Bare minimum quality gate - no stubs, no obvious mocks"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FORBIDDEN PATTERNS
+# These indicate incomplete implementations. Remove patterns if your project
+# legitimately uses them (e.g., TODO in comments for tracking).
+# ─────────────────────────────────────────────────────────────────────────────
+forbidden_patterns:
+  # Work-in-progress markers - code isn't ready for production
+  - pattern: "TODO"
+    description: "Work-in-progress marker"
+  - pattern: "FIXME"
+    description: "Known issue marker"
+  - pattern: "HACK"
+    description: "Workaround marker"
+  - pattern: "XXX"
+    description: "Attention marker"
+
+  # Stub implementations - functions that don't do anything
+  - pattern: 'panic\("not implemented"\)'
+    description: "Go stub pattern"
+  - pattern: 'panic\("TODO"\)'
+    description: "Go TODO panic"
+  - pattern: "NotImplementedError"
+    description: "Python stub pattern"
+  - pattern: 'throw new Error\([''"]not implemented[''"]'
+    description: "JavaScript stub pattern"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MOCK DATA SIGNATURES
+# Common patterns indicating placeholder/test data left in production code.
+# Adjust patterns based on your domain (e.g., remove "user-" if it's valid).
+# ─────────────────────────────────────────────────────────────────────────────
+mock_signatures:
+  skip_test_files: true  # Don't flag mock data in *_test.go files (default: true)
+  patterns:
+    # Placeholder domains and emails
+    - pattern: 'example\.com'
+      description: "Placeholder domain"
+    - pattern: 'test@|user@|admin@'
+      description: "Generic test email prefix"
+
+    # Sequential/fake identifiers
+    - pattern: '"12345"|"00000"|"11111"'
+      description: "Sequential fake IDs"
+    - pattern: 'user-1|user-2|user-3'
+      description: "Sequential user IDs"
+    - pattern: 'test-\d+'
+      description: "Test prefixed IDs"
+
+    # Placeholder text
+    - pattern: "lorem ipsum"
+      description: "Placeholder text"
+    - pattern: "Lorem Ipsum"
+      description: "Placeholder text (capitalized)"
+
+    # Placeholder credentials (security risk)
+    - pattern: 'password123|changeme|secret123'
+      description: "Placeholder credentials"
+    - pattern: "asdf|qwerty"
+      description: "Keyboard mash placeholders"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CUSTOMIZATION
+# Add these sections based on your project:
+#
+# required_files:
+#   - path: "main.go"
+#     required: true
+#
+# required_symbols:
+#   - name: "Run"
+#     kind: function
+#     file: "main.go"
+#
+# complexity:
+#   - symbol: "ProcessRequest"
+#     min_complexity: 3
+#
+# required_tests:
+#   - name: "TestProcessRequest"
+#
+# coverage_threshold: 80.0
+# ─────────────────────────────────────────────────────────────────────────────

@@ -1,0 +1,152 @@
+# Hollowcheck Contract: CLI Tool
+# ===============================
+# Quality gate for command-line tools with argument parsing.
+# Expects proper flag handling, help text, error messages, and exit codes.
+#
+# Customize:
+# - Update required_files with your command structure
+# - Update required_symbols with your command functions
+# - Adjust complexity based on command sophistication
+
+version: "1.0"
+name: "cli-tool"
+description: "Command-line tool with argument parsing and subcommands"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REQUIRED FILES
+# Typical structure for a CLI tool. Adjust paths to match your project.
+# ─────────────────────────────────────────────────────────────────────────────
+required_files:
+  # Uncomment and customize these for your project:
+  # - path: "cmd/mytool/main.go"
+  #   required: true
+  # - path: "internal/cli/root.go"
+  #   required: true
+  # - path: "internal/cli/run.go"
+  #   required: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REQUIRED SYMBOLS
+# Common CLI tool components. Adjust names to match your conventions.
+# ─────────────────────────────────────────────────────────────────────────────
+required_symbols:
+  # Uncomment and customize these for your project:
+  # - name: "main"
+  #   kind: function
+  #   file: "cmd/mytool/main.go"
+  # - name: "Execute"
+  #   kind: function
+  #   file: "internal/cli/root.go"
+  # - name: "NewRootCmd"
+  #   kind: function
+  #   file: "internal/cli/root.go"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FORBIDDEN PATTERNS
+# CLI tools need proper error handling and should avoid debug code.
+# ─────────────────────────────────────────────────────────────────────────────
+forbidden_patterns:
+  # Work-in-progress markers
+  - pattern: "TODO"
+    description: "Work-in-progress marker"
+  - pattern: "FIXME"
+    description: "Known issue marker"
+  - pattern: "HACK"
+    description: "Workaround marker"
+
+  # Stub implementations
+  - pattern: 'panic\("not implemented"\)'
+    description: "Go stub pattern"
+  - pattern: 'panic\("TODO'
+    description: "Go TODO panic"
+  - pattern: 'os\.Exit\(0\).*//.*stub'
+    description: "Stub exit"
+
+  # Poor error handling
+  - pattern: '_\s*=\s*err'
+    description: "Ignored error (use explicit handling)"
+  - pattern: 'if err != nil \{\s*\}'
+    description: "Empty error handler"
+
+  # Debug output that shouldn't ship
+  - pattern: 'fmt\.Println\("debug'
+    description: "Debug print statement"
+  - pattern: 'log\.Println\("debug'
+    description: "Debug log statement"
+
+  # Hardcoded paths (should be configurable)
+  - pattern: '"/tmp/'
+    description: "Hardcoded temp path (use os.TempDir)"
+  - pattern: '"/home/'
+    description: "Hardcoded home path (use os.UserHomeDir)"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MOCK DATA SIGNATURES
+# CLI tools should use proper defaults, not hardcoded test values.
+# ─────────────────────────────────────────────────────────────────────────────
+mock_signatures:
+  skip_test_files: true  # Don't flag mock data in *_test.go files (default: true)
+  patterns:
+    # Placeholder values that indicate incomplete implementation
+    - pattern: 'example\.com'
+      description: "Placeholder domain"
+    - pattern: '"your-api-key"'
+      description: "Placeholder API key prompt"
+    - pattern: '"your-'
+      description: "Placeholder 'your-X' pattern"
+
+    # Fake data
+    - pattern: '"12345"|"00000"'
+      description: "Sequential fake IDs"
+    - pattern: "lorem ipsum"
+      description: "Placeholder text"
+    - pattern: '"foo"|"bar"|"baz"'
+      description: "Placeholder values"
+
+    # Placeholder credentials
+    - pattern: 'changeme|password123'
+      description: "Placeholder credentials"
+
+    # Default ports that should be configurable
+    - pattern: '":8080"'
+      description: "Hardcoded port (should be configurable)"
+    - pattern: '":3000"'
+      description: "Hardcoded port (should be configurable)"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COMPLEXITY REQUIREMENTS
+# CLI commands should have real logic - flag parsing, validation, execution.
+# A complexity of 1-2 means it's likely just printing help or a stub.
+#
+# Typical complexity expectations:
+# - Root command setup: 2+ (just wiring, ok to be simple)
+# - Subcommand execution: 4+ (validate flags, run logic, handle errors)
+# - Config loading: 3+ (check file, parse, validate, merge defaults)
+# ─────────────────────────────────────────────────────────────────────────────
+complexity:
+  # Uncomment and customize these for your project:
+  # - symbol: "runCmd"
+  #   file: "internal/cli/run.go"
+  #   min_complexity: 4
+  # - symbol: "loadConfig"
+  #   file: "internal/config/config.go"
+  #   min_complexity: 3
+  # - symbol: "validateFlags"
+  #   file: "internal/cli/run.go"
+  #   min_complexity: 3
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REQUIRED TESTS
+# CLI tools need tests for commands, flag parsing, and error cases.
+# ─────────────────────────────────────────────────────────────────────────────
+required_tests:
+  # Uncomment and customize these for your project:
+  # - name: "TestRootCmd"
+  #   file: "internal/cli/root_test.go"
+  # - name: "TestRunCmd"
+  #   file: "internal/cli/run_test.go"
+  # - name: "TestRunCmd_InvalidFlags"
+  #   file: "internal/cli/run_test.go"
+
+# Test coverage threshold (optional)
+# coverage_threshold: 70.0

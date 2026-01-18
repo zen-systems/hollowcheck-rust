@@ -1,0 +1,191 @@
+# Hollowcheck Contract: Client SDK
+# =================================
+# Quality gate for API client libraries with authentication, retry logic,
+# and proper error handling. SDKs need robust implementations - users depend
+# on them working correctly in production.
+#
+# Customize:
+# - Update required_files with your client structure
+# - Update required_symbols with your client methods
+# - Adjust complexity based on API complexity
+
+version: "1.0"
+name: "client-sdk"
+description: "API client SDK with authentication, retry, and error handling"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REQUIRED FILES
+# Typical structure for an API client SDK. Adjust paths to match your project.
+# ─────────────────────────────────────────────────────────────────────────────
+required_files:
+  # Uncomment and customize these for your project:
+  # - path: "client.go"
+  #   required: true
+  # - path: "auth.go"
+  #   required: true
+  # - path: "errors.go"
+  #   required: true
+  # - path: "client_test.go"
+  #   required: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REQUIRED SYMBOLS
+# Core SDK components. Adjust names to match your conventions.
+# ─────────────────────────────────────────────────────────────────────────────
+required_symbols:
+  # Uncomment and customize these for your project:
+  # Client type and constructor
+  # - name: "Client"
+  #   kind: type
+  #   file: "client.go"
+  # - name: "NewClient"
+  #   kind: function
+  #   file: "client.go"
+
+  # HTTP methods (adjust based on your API)
+  # - name: "Get"
+  #   kind: method
+  #   file: "client.go"
+  # - name: "Post"
+  #   kind: method
+  #   file: "client.go"
+
+  # Error types
+  # - name: "APIError"
+  #   kind: type
+  #   file: "errors.go"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FORBIDDEN PATTERNS
+# SDK code must be production-ready. No stubs, no debug code, proper errors.
+# ─────────────────────────────────────────────────────────────────────────────
+forbidden_patterns:
+  # Work-in-progress markers
+  - pattern: "TODO"
+    description: "Work-in-progress marker"
+  - pattern: "FIXME"
+    description: "Known issue marker"
+  - pattern: "HACK"
+    description: "Workaround marker"
+  - pattern: "XXX"
+    description: "Attention marker"
+
+  # Stub implementations - SDK methods must work
+  - pattern: 'panic\("not implemented"\)'
+    description: "Go stub pattern"
+  - pattern: 'panic\("TODO'
+    description: "Go TODO panic"
+  - pattern: "return nil, nil"
+    description: "Empty return (likely stub)"
+  - pattern: 'return "", nil'
+    description: "Empty string return (likely stub)"
+
+  # Poor error handling - SDKs must handle errors properly
+  - pattern: '_\s*=\s*err'
+    description: "Ignored error - SDKs must propagate errors"
+  - pattern: 'if err != nil \{\s*\}'
+    description: "Empty error handler"
+
+  # Debug/test code
+  - pattern: 'fmt\.Print'
+    description: "Debug print - use structured logging or remove"
+  - pattern: 'log\.Print'
+    description: "Debug log - SDKs should not log by default"
+  - pattern: "http\\.DefaultClient"
+    description: "Don't use DefaultClient - no timeout configured"
+
+  # Hardcoded values that should be configurable
+  - pattern: 'time\.Sleep\(\d+\s*\*\s*time\.Second\)'
+    description: "Hardcoded sleep - use configurable backoff"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MOCK DATA SIGNATURES
+# SDKs should never have hardcoded test URLs, keys, or data.
+# ─────────────────────────────────────────────────────────────────────────────
+mock_signatures:
+  skip_test_files: true  # Don't flag mock data in *_test.go files (default: true)
+  patterns:
+    # Placeholder URLs - SDK should accept base URL as config
+    - pattern: 'example\.com'
+      description: "Placeholder domain"
+    - pattern: 'api\.test'
+      description: "Test domain in code"
+    - pattern: "localhost"
+      description: "Localhost reference (use config)"
+    - pattern: 'httpbin\.org'
+      description: "Test service URL"
+
+    # Fake credentials
+    - pattern: '"sk-test|"pk-test'
+      description: "Test API keys"
+    - pattern: '"test-api-key"'
+      description: "Placeholder API key"
+    - pattern: '"bearer test"'
+      description: "Test bearer token"
+    - pattern: 'changeme|password123|secret123'
+      description: "Placeholder credentials"
+
+    # Fake IDs and data
+    - pattern: '"12345"|"00000"|"11111"'
+      description: "Sequential fake IDs"
+    - pattern: 'user-1|user-2|user-3'
+      description: "Sequential user IDs"
+    - pattern: '"User 1"|"User 2"|"User 3"'
+      description: "Sequential user names"
+    - pattern: "lorem ipsum"
+      description: "Placeholder text"
+
+    # Test emails
+    - pattern: 'test@|user@|admin@'
+      description: "Test email prefix"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COMPLEXITY REQUIREMENTS
+# SDK methods need real implementations with error handling, retries,
+# and proper HTTP mechanics. Low complexity = likely a stub.
+#
+# Typical complexity expectations:
+# - NewClient: 3+ (validate config, set defaults, create http client)
+# - HTTP methods: 5+ (build request, add auth, send, handle response/errors)
+# - Auth refresh: 4+ (check expiry, refresh token, handle failures)
+# - Retry logic: 4+ (check retryable, backoff, limit attempts)
+# ─────────────────────────────────────────────────────────────────────────────
+complexity:
+  # Uncomment and customize these for your project:
+  # - symbol: "NewClient"
+  #   file: "client.go"
+  #   min_complexity: 3
+  # - symbol: "Get"
+  #   file: "client.go"
+  #   min_complexity: 5
+  # - symbol: "Post"
+  #   file: "client.go"
+  #   min_complexity: 5
+  # - symbol: "doRequest"
+  #   file: "client.go"
+  #   min_complexity: 6
+  # - symbol: "handleResponse"
+  #   file: "client.go"
+  #   min_complexity: 4
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REQUIRED TESTS
+# SDKs need comprehensive tests - users depend on correct behavior.
+# ─────────────────────────────────────────────────────────────────────────────
+required_tests:
+  # Uncomment and customize these for your project:
+  # - name: "TestNewClient"
+  #   file: "client_test.go"
+  # - name: "TestClient_Get"
+  #   file: "client_test.go"
+  # - name: "TestClient_Post"
+  #   file: "client_test.go"
+  # - name: "TestClient_Retry"
+  #   file: "client_test.go"
+  # - name: "TestClient_Auth"
+  #   file: "client_test.go"
+  # - name: "TestClient_ErrorHandling"
+  #   file: "client_test.go"
+
+# SDKs should have good test coverage
+# coverage_threshold: 80.0

@@ -1,0 +1,17 @@
+# Test contract for hallucinated dependency detection
+version: 1
+
+dependency_verification:
+  enabled: true
+  registries:
+    pypi:
+      enabled: true
+    npm:
+      enabled: true
+    crates:
+      enabled: true
+    go:
+      enabled: true
+  allowlist: []
+  cache_ttl_hours: 24
+  fail_on_timeout: false

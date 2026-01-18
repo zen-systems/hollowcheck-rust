@@ -1,0 +1,45 @@
+version: "1.0"
+name: "testdata-check"
+description: "Contract for testing hollowcheck against testdata"
+
+required_files:
+  - path: "stub.go"
+    required: true
+  - path: "clean.go"
+    required: true
+
+required_symbols:
+  - name: "ProcessData"
+    kind: function
+    file: "stub.go"
+  - name: "ProcessItems"
+    kind: function
+    file: "clean.go"
+
+forbidden_patterns:
+  - pattern: "TODO"
+    description: "Work-in-progress marker"
+  - pattern: "FIXME"
+    description: "Known issue marker"
+  - pattern: "HACK"
+    description: "Workaround marker"
+  - pattern: "XXX"
+    description: "Attention marker"
+
+mock_signatures:
+  skip_test_files: true
+  patterns:
+    - pattern: "example\\.com"
+      description: "Placeholder domain"
+    - pattern: "12345|00000|11111"
+      description: "Sequential/fake IDs"
+    - pattern: "lorem ipsum"
+      description: "Placeholder text"
+
+complexity:
+  - symbol: "ProcessData"
+    file: "stub.go"
+    min_complexity: 3
+  - symbol: "ProcessItems"
+    file: "clean.go"
+    min_complexity: 5

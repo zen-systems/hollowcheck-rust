@@ -1,0 +1,17 @@
+# Test contract for hallucinated dependency detection with allowlist
+version: 1
+
+dependency_verification:
+  enabled: true
+  registries:
+    pypi:
+      enabled: true
+    npm:
+      enabled: true
+  allowlist:
+    - "nonexistent-*"
+    - "fake-utils-*"
+    - "totally-made-up-sdk"
+    - "internal-*"
+  cache_ttl_hours: 24
+  fail_on_timeout: false

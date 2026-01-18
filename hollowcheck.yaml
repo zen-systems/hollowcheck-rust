@@ -1,0 +1,90 @@
+# Hollowcheck contract for hollowcheck-rust
+version: "1.0"
+name: "hollowcheck-rust"
+description: "Quality contract for the hollowcheck Rust implementation"
+
+# Core source files that must exist
+required_files:
+  - path: "src/main.rs"
+    required: true
+  - path: "src/lib.rs"
+    required: true
+  - path: "src/cli.rs"
+    required: true
+  - path: "src/contract.rs"
+    required: true
+  - path: "src/detect/mod.rs"
+    required: true
+  - path: "src/parser/mod.rs"
+    required: true
+  - path: "src/report.rs"
+    required: true
+  - path: "src/score.rs"
+    required: true
+  - path: "Cargo.toml"
+    required: true
+
+# Key symbols that must be defined
+required_symbols:
+  - name: "Runner"
+    kind: type
+    file: "src/detect/runner.rs"
+  - name: "Contract"
+    kind: type
+    file: "src/contract.rs"
+  - name: "Violation"
+    kind: type
+    file: "src/detect/types.rs"
+  - name: "HollownessScore"
+    kind: type
+    file: "src/score.rs"
+
+# Patterns that indicate incomplete code
+forbidden_patterns:
+  - pattern: "unimplemented!"
+    description: "Unimplemented macro - stub code"
+  - pattern: "todo!"
+    description: "Rust todo macro - incomplete code"
+  - pattern: 'panic!\("not implemented'
+    description: "Panic with not implemented message"
+  - pattern: "HACK:"
+    description: "Hack marker"
+  - pattern: "XXX:"
+    description: "Attention marker"
+
+# Mock data signatures
+mock_signatures:
+  skip_test_files: true
+  patterns:
+    - pattern: 'example\.com'
+      description: "Placeholder domain"
+    - pattern: '"12345"|"00000"|"11111"'
+      description: "Sequential/fake IDs"
+    - pattern: "lorem ipsum"
+      description: "Placeholder text"
+    - pattern: "test@test\\.com"
+      description: "Fake email"
+    - pattern: "password123|changeme|secret123"
+      description: "Placeholder credentials"
+
+# Complexity requirements for key functions
+complexity:
+  - symbol: "run"
+    file: "src/detect/runner.rs"
+    min_complexity: 3
+  - symbol: "run_lint"
+    file: "src/cli.rs"
+    min_complexity: 5
+
+# Dependency verification (local crate names auto-detected from Cargo.toml)
+dependency_verification:
+  enabled: true
+  registries:
+    crates:
+      enabled: true
+  allowlist: []
+  cache_ttl_hours: 24
+  fail_on_timeout: false
+
+# Scoring threshold
+threshold: 25

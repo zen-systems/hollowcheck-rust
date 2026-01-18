@@ -1,0 +1,172 @@
+# Hollowcheck Contract: Background Worker
+# ========================================
+# Quality gate for background job processors with graceful shutdown.
+# Workers need proper job handling, error recovery, and clean shutdown.
+#
+# Customize:
+# - Update required_files with your worker structure
+# - Update required_symbols with your worker functions
+# - Adjust complexity based on job complexity
+
+version: "1.0"
+name: "worker"
+description: "Background job processor with graceful shutdown"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REQUIRED FILES
+# Typical structure for a background worker. Adjust paths to match your project.
+# ─────────────────────────────────────────────────────────────────────────────
+required_files:
+  # Uncomment and customize these for your project:
+  # - path: "internal/worker/worker.go"
+  #   required: true
+  # - path: "internal/worker/handler.go"
+  #   required: true
+  # - path: "internal/worker/worker_test.go"
+  #   required: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REQUIRED SYMBOLS
+# Core worker components. Adjust names to match your conventions.
+# ─────────────────────────────────────────────────────────────────────────────
+required_symbols:
+  # Uncomment and customize these for your project:
+  # Worker type and lifecycle
+  # - name: "Worker"
+  #   kind: type
+  #   file: "internal/worker/worker.go"
+  # - name: "NewWorker"
+  #   kind: function
+  #   file: "internal/worker/worker.go"
+  # - name: "Start"
+  #   kind: method
+  #   file: "internal/worker/worker.go"
+  # - name: "Stop"
+  #   kind: method
+  #   file: "internal/worker/worker.go"
+
+  # Job processing
+  # - name: "ProcessJob"
+  #   kind: method
+  #   file: "internal/worker/handler.go"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FORBIDDEN PATTERNS
+# Workers must be reliable - proper error handling, no infinite loops without
+# breaks, proper shutdown handling.
+# ─────────────────────────────────────────────────────────────────────────────
+forbidden_patterns:
+  # Work-in-progress markers
+  - pattern: "TODO"
+    description: "Work-in-progress marker"
+  - pattern: "FIXME"
+    description: "Known issue marker"
+  - pattern: "HACK"
+    description: "Workaround marker"
+  - pattern: "XXX"
+    description: "Attention marker"
+
+  # Stub implementations
+  - pattern: 'panic\("not implemented"\)'
+    description: "Go stub pattern"
+  - pattern: 'panic\("TODO'
+    description: "Go TODO panic"
+
+  # Dangerous patterns for workers
+  - pattern: "for \{[^}]*\}.*//.*infinite"
+    description: "Infinite loop without context check"
+  - pattern: '_\s*=\s*err'
+    description: "Ignored error - workers must handle errors"
+  - pattern: 'if err != nil \{\s*\}'
+    description: "Empty error handler"
+  - pattern: 'os\.Exit\('
+    description: "Direct exit - use graceful shutdown"
+
+  # Debug code
+  - pattern: 'fmt\.Print'
+    description: "Debug print - use structured logging"
+
+  # Hardcoded timing (should be configurable)
+  - pattern: 'time\.Sleep\(\d+\s*\*\s*time\.Second\)'
+    description: "Hardcoded sleep duration"
+  - pattern: 'time\.NewTicker\(\d+\s*\*\s*time\.Second\)'
+    description: "Hardcoded ticker interval"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MOCK DATA SIGNATURES
+# Workers should use real queues/databases, not hardcoded test data.
+# ─────────────────────────────────────────────────────────────────────────────
+mock_signatures:
+  skip_test_files: true  # Don't flag mock data in *_test.go files (default: true)
+  patterns:
+    # Placeholder infrastructure
+    - pattern: "localhost"
+      description: "Localhost reference (use config)"
+    - pattern: 'example\.com'
+      description: "Placeholder domain"
+    - pattern: "memory://"
+      description: "In-memory storage (ok for tests, not production)"
+
+    # Fake job data
+    - pattern: '"12345"|"00000"|"11111"'
+      description: "Sequential fake IDs"
+    - pattern: 'job-1|job-2|job-3'
+      description: "Sequential job IDs"
+    - pattern: 'test-job'
+      description: "Test job identifier"
+
+    # Placeholder content
+    - pattern: "lorem ipsum"
+      description: "Placeholder text"
+    - pattern: '"foo"|"bar"|"baz"'
+      description: "Placeholder values"
+
+    # Placeholder credentials
+    - pattern: 'changeme|password123'
+      description: "Placeholder credentials"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COMPLEXITY REQUIREMENTS
+# Workers need real processing logic, error handling, and proper lifecycle.
+# Low complexity = likely just logging or returning immediately.
+#
+# Typical complexity expectations:
+# - Start: 4+ (setup resources, start goroutines, handle errors)
+# - Stop: 3+ (signal shutdown, wait for completion, cleanup)
+# - ProcessJob: 5+ (validate job, process, handle errors, update status)
+# - Main loop: 4+ (select on channels, handle context, process jobs)
+# ─────────────────────────────────────────────────────────────────────────────
+complexity:
+  # Uncomment and customize these for your project:
+  # - symbol: "Start"
+  #   file: "internal/worker/worker.go"
+  #   min_complexity: 4
+  # - symbol: "Stop"
+  #   file: "internal/worker/worker.go"
+  #   min_complexity: 3
+  # - symbol: "ProcessJob"
+  #   file: "internal/worker/handler.go"
+  #   min_complexity: 5
+  # - symbol: "run"
+  #   file: "internal/worker/worker.go"
+  #   min_complexity: 4
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REQUIRED TESTS
+# Workers need tests for job processing, error cases, and shutdown behavior.
+# ─────────────────────────────────────────────────────────────────────────────
+required_tests:
+  # Uncomment and customize these for your project:
+  # - name: "TestWorker_Start"
+  #   file: "internal/worker/worker_test.go"
+  # - name: "TestWorker_Stop"
+  #   file: "internal/worker/worker_test.go"
+  # - name: "TestWorker_GracefulShutdown"
+  #   file: "internal/worker/worker_test.go"
+  # - name: "TestProcessJob"
+  #   file: "internal/worker/handler_test.go"
+  # - name: "TestProcessJob_Error"
+  #   file: "internal/worker/handler_test.go"
+
+# Workers should have good test coverage
+# coverage_threshold: 75.0

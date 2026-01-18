@@ -1,0 +1,172 @@
+# Hollowcheck Contract: CRUD Endpoint
+# ====================================
+# Quality gate for REST API endpoints with database operations.
+# Expects handlers with real validation, error handling, and DB interactions.
+#
+# Customize:
+# - Update required_files with your actual handler/model paths
+# - Update required_symbols with your handler function names
+# - Adjust complexity thresholds based on your endpoint complexity
+
+version: "1.0"
+name: "crud-endpoint"
+description: "REST API endpoint with CRUD database operations"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REQUIRED FILES
+# Typical structure for a CRUD endpoint. Adjust paths to match your project.
+# ─────────────────────────────────────────────────────────────────────────────
+required_files:
+  # Uncomment and customize these for your project:
+  # - path: "internal/handlers/resource.go"
+  #   required: true
+  # - path: "internal/models/resource.go"
+  #   required: true
+  # - path: "internal/repository/resource.go"
+  #   required: true
+  # - path: "internal/handlers/resource_test.go"
+  #   required: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REQUIRED SYMBOLS
+# Standard CRUD handler functions. Adjust names to match your conventions.
+# ─────────────────────────────────────────────────────────────────────────────
+required_symbols:
+  # Uncomment and customize these for your project:
+  # - name: "CreateHandler"
+  #   kind: function
+  #   file: "internal/handlers/resource.go"
+  # - name: "GetHandler"
+  #   kind: function
+  #   file: "internal/handlers/resource.go"
+  # - name: "UpdateHandler"
+  #   kind: function
+  #   file: "internal/handlers/resource.go"
+  # - name: "DeleteHandler"
+  #   kind: function
+  #   file: "internal/handlers/resource.go"
+  # - name: "ListHandler"
+  #   kind: function
+  #   file: "internal/handlers/resource.go"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FORBIDDEN PATTERNS
+# Stricter patterns for production API endpoints.
+# ─────────────────────────────────────────────────────────────────────────────
+forbidden_patterns:
+  # Work-in-progress markers
+  - pattern: "TODO"
+    description: "Work-in-progress marker"
+  - pattern: "FIXME"
+    description: "Known issue marker"
+  - pattern: "HACK"
+    description: "Workaround marker"
+  - pattern: "XXX"
+    description: "Attention marker"
+
+  # Stub implementations
+  - pattern: 'panic\("not implemented"\)'
+    description: "Go stub pattern"
+  - pattern: 'panic\("TODO'
+    description: "Go TODO panic"
+  - pattern: "return nil, nil"
+    description: "Empty return (likely stub)"
+
+  # Debug code that shouldn't be in production
+  - pattern: 'fmt\.Print'
+    description: "Debug print statement (use structured logging)"
+  - pattern: 'log\.Print'
+    description: "Use structured logging instead"
+
+  # Hardcoded credentials (security)
+  - pattern: 'password.*=.*"[^"]+"'
+    description: "Hardcoded password"
+  - pattern: 'secret.*=.*"[^"]+"'
+    description: "Hardcoded secret"
+  - pattern: 'api_key.*=.*"[^"]+"'
+    description: "Hardcoded API key"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MOCK DATA SIGNATURES
+# API endpoints should not have test data hardcoded.
+# ─────────────────────────────────────────────────────────────────────────────
+mock_signatures:
+  skip_test_files: true  # Don't flag mock data in *_test.go files (default: true)
+  patterns:
+    # Placeholder domains and emails
+    - pattern: 'example\.com'
+      description: "Placeholder domain"
+    - pattern: 'test\.com'
+      description: "Test domain"
+    - pattern: 'localhost'
+      description: "Localhost reference (use config)"
+
+    # Fake IDs and users
+    - pattern: '"12345"|"00000"|"11111"'
+      description: "Sequential fake IDs"
+    - pattern: 'user-1|user-2|user-3'
+      description: "Sequential user IDs"
+    - pattern: '"User 1"|"User 2"|"User 3"'
+      description: "Sequential user names"
+    - pattern: 'test-\d+'
+      description: "Test prefixed data"
+
+    # Placeholder content
+    - pattern: "lorem ipsum"
+      description: "Placeholder text"
+    - pattern: '"foo"|"bar"|"baz"'
+      description: "Placeholder variable names in strings"
+
+    # Placeholder credentials
+    - pattern: 'password123|changeme|admin123'
+      description: "Placeholder credentials"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COMPLEXITY REQUIREMENTS
+# CRUD handlers should have real logic - input validation, error handling,
+# database operations. A complexity of 1-2 means it's likely a stub.
+#
+# Typical complexity expectations:
+# - Create: 5+ (validate input, check duplicates, insert, handle errors)
+# - Get: 3+ (validate ID, fetch, handle not found)
+# - Update: 5+ (validate input, check exists, update, handle errors)
+# - Delete: 3+ (validate ID, check exists, delete, handle errors)
+# - List: 4+ (parse pagination, query, handle empty results)
+# ─────────────────────────────────────────────────────────────────────────────
+complexity:
+  # Uncomment and customize these for your project:
+  # - symbol: "CreateHandler"
+  #   file: "internal/handlers/resource.go"
+  #   min_complexity: 5
+  # - symbol: "GetHandler"
+  #   file: "internal/handlers/resource.go"
+  #   min_complexity: 3
+  # - symbol: "UpdateHandler"
+  #   file: "internal/handlers/resource.go"
+  #   min_complexity: 5
+  # - symbol: "DeleteHandler"
+  #   file: "internal/handlers/resource.go"
+  #   min_complexity: 3
+  # - symbol: "ListHandler"
+  #   file: "internal/handlers/resource.go"
+  #   min_complexity: 4
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REQUIRED TESTS
+# Every CRUD operation should have corresponding tests.
+# ─────────────────────────────────────────────────────────────────────────────
+required_tests:
+  # Uncomment and customize these for your project:
+  # - name: "TestCreateHandler"
+  #   file: "internal/handlers/resource_test.go"
+  # - name: "TestGetHandler"
+  #   file: "internal/handlers/resource_test.go"
+  # - name: "TestUpdateHandler"
+  #   file: "internal/handlers/resource_test.go"
+  # - name: "TestDeleteHandler"
+  #   file: "internal/handlers/resource_test.go"
+  # - name: "TestListHandler"
+  #   file: "internal/handlers/resource_test.go"
+
+# Test coverage threshold (optional)
+# coverage_threshold: 80.0
