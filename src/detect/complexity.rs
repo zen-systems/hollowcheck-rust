@@ -158,7 +158,7 @@ pub fn detect_low_complexity<P1: AsRef<Path>, P2: AsRef<Path>>(
                 ),
                 file,
                 line: 0,
-                severity: Severity::Warning,
+                severity: Severity::Error,
             });
         }
     }

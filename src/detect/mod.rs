@@ -11,6 +11,7 @@ mod runner;
 mod stdlib;
 mod suppress;
 mod symbols;
+mod todos;
 mod types;
 
 pub use complexity::detect_low_complexity;
@@ -26,4 +27,5 @@ pub use suppress::{
     SuppressionType,
 };
 pub use symbols::{detect_missing_symbols, detect_missing_tests};
+pub use todos::detect_hollow_todos;
 pub use types::{DetectionResult, Severity, Violation, ViolationRule};

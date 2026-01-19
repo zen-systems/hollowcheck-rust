@@ -72,7 +72,7 @@ pub fn detect_missing_symbols<P1: AsRef<Path>, P2: AsRef<Path>>(
                 message: format!("required {} {:?} not found", req.kind, req.name),
                 file: req.file.clone(),
                 line: 0,
-                severity: Severity::Error,
+                severity: Severity::Critical,
             });
         }
     }
@@ -148,7 +148,7 @@ pub fn detect_missing_tests<P1: AsRef<Path>, P2: AsRef<Path>>(
                 message: format!("required test {:?} not found", req.name),
                 file,
                 line: 0,
-                severity: Severity::Error,
+                severity: Severity::Warning,
             });
         }
     }

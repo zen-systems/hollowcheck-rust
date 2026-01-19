@@ -138,12 +138,13 @@ fn discover_contract() -> anyhow::Result<PathBuf> {
     )
 }
 
-/// Collect files to scan based on mode.
-fn collect_files(root: &Path, include_test_files: bool) -> anyhow::Result<Vec<PathBuf>> {
+/// Collect files to scan based on mode and contract settings.
+fn collect_files(root: &Path, contract: &Contract) -> anyhow::Result<Vec<PathBuf>> {
     let supported_extensions = [
         "go", "rs", "py", "js", "ts", "jsx", "tsx", "java", "kt", "c", "cpp", "h", "hpp",
     ];
 
+    let include_test_files = contract.should_include_test_files();
     let mut files = Vec::new();
 
     for entry in WalkDir::new(root)
@@ -184,6 +185,12 @@ fn collect_files(root: &Path, include_test_files: bool) -> anyhow::Result<Vec<Pa
                         continue;
                     }
                 }
+
+                // Skip files matching excluded_paths patterns
+                if contract.is_path_excluded(path) {
+                    continue;
+                }
+
                 files.push(path.to_path_buf());
             }
         }
@@ -261,7 +268,7 @@ pub fn run_lint(args: &LintArgs) -> anyhow::Result<i32> {
 
     // Collect files to scan
     let files = if metadata.is_dir() {
-        collect_files(&abs_path, contract.should_include_test_files())?
+        collect_files(&abs_path, &contract)?
     } else {
         vec![abs_path.clone()]
     };

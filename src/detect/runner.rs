@@ -6,9 +6,9 @@ use crate::contract::Contract;
 
 use super::{
     collect_suppressions, detect_forbidden_patterns, detect_god_objects,
-    detect_hallucinated_dependencies, detect_low_complexity, detect_missing_files,
-    detect_missing_symbols, detect_missing_tests, detect_mock_data, filter_suppressed,
-    DetectionResult, GodObjectConfig,
+    detect_hallucinated_dependencies, detect_hollow_todos, detect_low_complexity,
+    detect_missing_files, detect_missing_symbols, detect_missing_tests, detect_mock_data,
+    filter_suppressed, DetectionResult, GodObjectConfig,
 };
 
 /// Executes all detection checks against a set of files.
@@ -51,6 +51,12 @@ impl Runner {
         // Scan for mock data signatures
         let mock_result = detect_mock_data(files, contract.mock_signatures.as_ref())?;
         result.merge(mock_result);
+
+        // Detect hollow TODOs (context-less TODO markers)
+        if contract.detect_hollow_todos() {
+            let todo_result = detect_hollow_todos(files)?;
+            result.merge(todo_result);
+        }
 
         // Check required symbols
         let symbol_result =
@@ -104,7 +110,7 @@ impl Runner {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::contract::{ForbiddenPattern, RequiredFile};
+    use crate::contract::{ForbiddenPattern, HollowTodosConfig, RequiredFile};
     use tempfile::TempDir;
 
     #[test]
@@ -135,6 +141,8 @@ func main() {{}}
                 pattern: todo_marker.to_string(),
                 description: Some("Remove TODOs".to_string()),
             }],
+            // Disable hollow TODO detection for this test
+            hollow_todos: Some(HollowTodosConfig { enabled: false }),
             ..Default::default()
         };
 
@@ -171,6 +179,8 @@ func main() {{}}
                 pattern: todo_marker.to_string(),
                 description: None,
             }],
+            // Disable hollow TODO detection for this test
+            hollow_todos: Some(HollowTodosConfig { enabled: false }),
             ..Default::default()
         };
 

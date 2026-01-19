@@ -20,6 +20,7 @@ pub mod points {
     pub const GOD_CLASS: i32 = 8; // warning - architectural smell
     pub const MISSING_TEST: i32 = 5; // warning
     pub const MOCK_DATA: i32 = 3; // warning
+    pub const HOLLOW_TODO: i32 = 5; // warning - context-less TODO
 
     // Prose-specific point weights
     pub const FILLER_PHRASE: i32 = 2; // warning
@@ -87,6 +88,7 @@ fn get_points_for_rule(rule: &str) -> i32 {
         "god_class" => points::GOD_CLASS,
         "missing_test" => points::MISSING_TEST,
         "mock_data" => points::MOCK_DATA,
+        "hollow_todo" => points::HOLLOW_TODO,
         // Prose rules
         "filler_phrase" => points::FILLER_PHRASE,
         "weasel_word" => points::WEASEL_WORD,
@@ -122,19 +124,26 @@ fn calculate_grade(score: i32) -> String {
 }
 
 /// Calculate the hollowness score from detection results.
+/// Only Critical and Error severity violations count toward the score.
+/// Warning and Info violations are tracked in breakdown but don't affect pass/fail.
 pub fn calculate(result: &DetectionResult, contract: &Contract) -> HollownessScore {
     let mut breakdown: HashMap<String, i32> = HashMap::new();
-    let mut total_points = 0;
+    let mut scoring_points = 0;
 
     // Count violations by rule and calculate points
+    // Only Critical/Error count toward the score
     for v in &result.violations {
         let points = get_points(v.rule);
         *breakdown.entry(v.rule.as_str().to_string()).or_insert(0) += points;
-        total_points += points;
+
+        // Only add to scoring total if this severity counts toward score
+        if v.severity.counts_toward_score() {
+            scoring_points += points;
+        }
     }
 
     // Cap at 100
-    let score = total_points.min(100);
+    let score = scoring_points.min(100);
 
     // Determine threshold (could be extended to read from contract)
     let threshold = DEFAULT_THRESHOLD;
@@ -150,17 +159,22 @@ pub fn calculate(result: &DetectionResult, contract: &Contract) -> HollownessSco
 }
 
 /// Calculate the hollowness score with a custom threshold.
+/// Only Critical and Error severity violations count toward the score.
 pub fn calculate_with_threshold(result: &DetectionResult, threshold: i32) -> HollownessScore {
     let mut breakdown: HashMap<String, i32> = HashMap::new();
-    let mut total_points = 0;
+    let mut scoring_points = 0;
 
     for v in &result.violations {
         let points = get_points(v.rule);
         *breakdown.entry(v.rule.as_str().to_string()).or_insert(0) += points;
-        total_points += points;
+
+        // Only add to scoring total if this severity counts toward score
+        if v.severity.counts_toward_score() {
+            scoring_points += points;
+        }
     }
 
-    let score = total_points.min(100);
+    let score = scoring_points.min(100);
 
     HollownessScore {
         score,
@@ -173,18 +187,23 @@ pub fn calculate_with_threshold(result: &DetectionResult, threshold: i32) -> Hol
 
 /// Calculate a score based only on new violations (baseline mode).
 /// The threshold defaults to 0 if not specified (any new violation fails).
+/// Only Critical and Error severity violations count toward the score.
 pub fn calculate_for_new_violations(result: &DetectionResult, threshold: i32) -> HollownessScore {
     let mut breakdown: HashMap<String, i32> = HashMap::new();
-    let mut total_points = 0;
+    let mut scoring_points = 0;
 
     // Only count new violations
     for v in &result.new_violations {
         let points = get_points(v.rule);
         *breakdown.entry(v.rule.as_str().to_string()).or_insert(0) += points;
-        total_points += points;
+
+        // Only add to scoring total if this severity counts toward score
+        if v.severity.counts_toward_score() {
+            scoring_points += points;
+        }
     }
 
-    let score = total_points.min(100);
+    let score = scoring_points.min(100);
 
     // For baseline mode, default threshold is 0 (any new violation fails)
     let threshold = if threshold < 0 { 0 } else { threshold };
@@ -201,7 +220,7 @@ pub fn calculate_for_new_violations(result: &DetectionResult, threshold: i32) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::detect::{Severity, Violation};
+    use crate::detect::Violation;
 
     fn make_violation(rule: ViolationRule) -> Violation {
         Violation {
@@ -209,22 +228,26 @@ mod tests {
             message: "test".to_string(),
             file: "test.go".to_string(),
             line: 1,
-            severity: Severity::Error,
+            severity: rule.default_severity(),
         }
     }
 
     #[test]
     fn test_calculate_score() {
         let mut result = DetectionResult::new();
-        result.add_violation(make_violation(ViolationRule::ForbiddenPattern)); // 10 points
-        result.add_violation(make_violation(ViolationRule::MockData)); // 3 points
+        result.add_violation(make_violation(ViolationRule::ForbiddenPattern)); // 10 pts (Error - counts)
+        result.add_violation(make_violation(ViolationRule::MockData)); // 3 pts (Warning - doesn't count)
 
         let contract = Contract::default();
         let score = calculate(&result, &contract);
 
-        assert_eq!(score.score, 13);
-        assert_eq!(score.grade, "B");
-        assert!(score.passed); // 13 <= 25
+        // Only Critical/Error count toward score. MockData is Warning.
+        assert_eq!(score.score, 10);
+        assert_eq!(score.grade, "A");
+        assert!(score.passed); // 10 <= 25
+        // But breakdown still includes all violations
+        assert_eq!(score.breakdown.get("forbidden_pattern"), Some(&10));
+        assert_eq!(score.breakdown.get("mock_data"), Some(&3));
     }
 
     #[test]
@@ -288,19 +311,22 @@ mod tests {
     #[test]
     fn test_calculate_for_new_violations() {
         let mut result = DetectionResult::new();
-        // Regular violations
+        // Regular violations (not counted in new_violations mode)
         result.add_violation(make_violation(ViolationRule::ForbiddenPattern));
         result.add_violation(make_violation(ViolationRule::ForbiddenPattern));
-        // New violations (only these should count)
+        // New violations (only these should count, and only Critical/Error)
         result
             .new_violations
-            .push(make_violation(ViolationRule::MockData)); // 3 points
+            .push(make_violation(ViolationRule::ForbiddenPattern)); // 10 pts (Error - counts)
+        result
+            .new_violations
+            .push(make_violation(ViolationRule::MockData)); // 3 pts (Warning - doesn't count)
 
         let score = calculate_for_new_violations(&result, 0);
-        assert_eq!(score.score, 3);
-        assert!(!score.passed); // 3 > 0
+        assert_eq!(score.score, 10); // Only ForbiddenPattern (Error) counts
+        assert!(!score.passed); // 10 > 0
 
-        let score = calculate_for_new_violations(&result, 5);
-        assert!(score.passed); // 3 <= 5
+        let score = calculate_for_new_violations(&result, 15);
+        assert!(score.passed); // 10 <= 15
     }
 }

@@ -3,17 +3,33 @@
 use serde::{Deserialize, Serialize};
 
 /// Severity levels for violations.
+/// Critical and Error are "hard" violations that count toward the hollowness score.
+/// Warning and Info are "soft" violations reported for awareness but don't fail the check.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
+    /// Missing implementation, hallucinated deps - absolute blockers
+    Critical,
+    /// Forbidden patterns, low complexity - serious issues
     Error,
+    /// God files, context-less TODOs - code smells
     Warning,
+    /// Informational issues like example.com in docs
     Info,
+}
+
+impl Severity {
+    /// Returns true if this severity should count toward the hollowness score.
+    /// Only Critical and Error severities affect the score.
+    pub fn counts_toward_score(&self) -> bool {
+        matches!(self, Severity::Critical | Severity::Error)
+    }
 }
 
 impl std::fmt::Display for Severity {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Severity::Critical => write!(f, "critical"),
             Severity::Error => write!(f, "error"),
             Severity::Warning => write!(f, "warning"),
             Severity::Info => write!(f, "info"),
@@ -26,6 +42,7 @@ impl std::str::FromStr for Severity {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
+            "critical" => Ok(Severity::Critical),
             "error" => Ok(Severity::Error),
             "warning" => Ok(Severity::Warning),
             "info" => Ok(Severity::Info),
@@ -51,6 +68,9 @@ pub enum ViolationRule {
     MissingTest,
     #[serde(rename = "hallucinated_dependency")]
     HallucinatedDependency,
+    /// Hollow TODO - a TODO without meaningful context
+    #[serde(rename = "hollow_todo")]
+    HollowTodo,
     // God object rules
     #[serde(rename = "god_file")]
     GodFile,
@@ -83,6 +103,7 @@ impl ViolationRule {
             ViolationRule::LowComplexity => "low_complexity",
             ViolationRule::MissingTest => "missing_test",
             ViolationRule::HallucinatedDependency => "hallucinated_dependency",
+            ViolationRule::HollowTodo => "hollow_todo",
             ViolationRule::GodFile => "god_file",
             ViolationRule::GodFunction => "god_function",
             ViolationRule::GodClass => "god_class",
@@ -104,6 +125,7 @@ impl ViolationRule {
             "low_complexity" => Some(ViolationRule::LowComplexity),
             "missing_test" => Some(ViolationRule::MissingTest),
             "hallucinated_dependency" => Some(ViolationRule::HallucinatedDependency),
+            "hollow_todo" => Some(ViolationRule::HollowTodo),
             "god_file" => Some(ViolationRule::GodFile),
             "god_function" => Some(ViolationRule::GodFunction),
             "god_class" => Some(ViolationRule::GodClass),
@@ -114,6 +136,40 @@ impl ViolationRule {
             "prose_middle_sag" => Some(ViolationRule::ProseMiddleSag),
             "prose_weak_transition" => Some(ViolationRule::ProseWeakTransition),
             _ => None,
+        }
+    }
+
+    /// Returns the default severity for this rule type.
+    /// Critical: Missing implementations, hallucinated dependencies
+    /// Error: Forbidden patterns, low complexity
+    /// Warning: God objects, mock data, hollow TODOs
+    /// Info: Weak prose issues
+    pub fn default_severity(&self) -> Severity {
+        match self {
+            // Critical - absolute blockers
+            ViolationRule::MissingFile => Severity::Critical,
+            ViolationRule::MissingSymbol => Severity::Critical,
+            ViolationRule::HallucinatedDependency => Severity::Critical,
+
+            // Error - serious issues
+            ViolationRule::ForbiddenPattern => Severity::Error,
+            ViolationRule::LowComplexity => Severity::Error,
+
+            // Warning - code smells / informational
+            ViolationRule::GodFile => Severity::Warning,
+            ViolationRule::GodFunction => Severity::Warning,
+            ViolationRule::GodClass => Severity::Warning,
+            ViolationRule::MockData => Severity::Warning,
+            ViolationRule::MissingTest => Severity::Warning,
+            ViolationRule::HollowTodo => Severity::Warning,
+
+            // Prose rules - mostly warnings/info
+            ViolationRule::FillerPhrase => Severity::Warning,
+            ViolationRule::WeaselWord => Severity::Warning,
+            ViolationRule::LowDensity => Severity::Warning,
+            ViolationRule::ProseRepetitiveOpener => Severity::Warning,
+            ViolationRule::ProseMiddleSag => Severity::Error,
+            ViolationRule::ProseWeakTransition => Severity::Info,
         }
     }
 }
@@ -180,11 +236,26 @@ impl DetectionResult {
         self.suppressed.len()
     }
 
-    /// Check if there are any error-severity violations.
+    /// Check if there are any critical or error severity violations.
     pub fn has_errors(&self) -> bool {
         self.violations
             .iter()
-            .any(|v| v.severity == Severity::Error)
+            .any(|v| matches!(v.severity, Severity::Critical | Severity::Error))
+    }
+
+    /// Check if there are any critical severity violations.
+    pub fn has_critical(&self) -> bool {
+        self.violations
+            .iter()
+            .any(|v| v.severity == Severity::Critical)
+    }
+
+    /// Count violations that count toward the hollowness score (Critical + Error only).
+    pub fn scoring_violation_count(&self) -> usize {
+        self.violations
+            .iter()
+            .filter(|v| v.severity.counts_toward_score())
+            .count()
     }
 
     /// Number of new violations (baseline mode).

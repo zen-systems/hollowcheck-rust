@@ -362,6 +362,7 @@ fn get_rule_info(rule_id: &str) -> RuleInfo {
 
 fn map_severity_to_level(severity: &Severity) -> &'static str {
     match severity {
+        Severity::Critical => "error",
         Severity::Error => "error",
         Severity::Warning => "warning",
         Severity::Info => "note",
@@ -590,6 +591,7 @@ fn write_violations(violations: &[Violation]) {
 
 fn write_severity_tag(severity: &Severity) {
     match severity {
+        Severity::Critical => print!("    {} ", "CRIT ".red().bold()),
         Severity::Error => print!("    {} ", "ERROR".red()),
         Severity::Warning => print!("    {} ", "WARN ".yellow()),
         Severity::Info => print!("    {} ", "INFO ".blue()),

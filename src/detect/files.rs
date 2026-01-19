@@ -27,7 +27,7 @@ pub fn detect_missing_files<P: AsRef<Path>>(
                         message: format!("required file {:?} is a directory, not a file", f.path),
                         file: f.path.clone(),
                         line: 0,
-                        severity: Severity::Error,
+                        severity: Severity::Critical,
                     });
                 }
             }
@@ -37,7 +37,7 @@ pub fn detect_missing_files<P: AsRef<Path>>(
                     message: format!("required file {:?} does not exist", f.path),
                     file: f.path.clone(),
                     line: 0,
-                    severity: Severity::Error,
+                    severity: Severity::Critical,
                 });
             }
             Err(e) => {

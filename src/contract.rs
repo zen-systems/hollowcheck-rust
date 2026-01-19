@@ -21,6 +21,9 @@ pub struct Contract {
     /// Whether to include test files in analysis (default: false)
     #[serde(default)]
     pub include_test_files: Option<bool>,
+    /// Glob patterns for paths to exclude from analysis (e.g., "**/docs/**", "**/examples/**")
+    #[serde(default)]
+    pub excluded_paths: Vec<String>,
     #[serde(default)]
     pub required_files: Vec<RequiredFile>,
     #[serde(default)]
@@ -41,6 +44,9 @@ pub struct Contract {
     pub dependency_verification: Option<DependencyVerificationConfig>,
     #[serde(default)]
     pub god_objects: Option<GodObjectContractConfig>,
+    /// Whether to detect hollow TODOs (TODOs without meaningful context). Default: true
+    #[serde(default)]
+    pub hollow_todos: Option<HollowTodosConfig>,
 }
 
 impl Contract {
@@ -59,6 +65,34 @@ impl Contract {
     /// Returns the analysis mode (defaults to "code").
     pub fn get_mode(&self) -> &str {
         self.mode.as_deref().unwrap_or("code")
+    }
+
+    /// Check if a path should be excluded based on excluded_paths patterns.
+    /// Uses globset for matching, which supports `**` for recursive directory matching.
+    pub fn is_path_excluded(&self, path: &Path) -> bool {
+        if self.excluded_paths.is_empty() {
+            return false;
+        }
+
+        let path_str = path.to_string_lossy();
+
+        for pattern in &self.excluded_paths {
+            if let Ok(glob) = globset::Glob::new(pattern) {
+                let matcher = glob.compile_matcher();
+                if matcher.is_match(&*path_str) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Returns whether hollow TODO detection is enabled (defaults to true).
+    pub fn detect_hollow_todos(&self) -> bool {
+        self.hollow_todos
+            .as_ref()
+            .map(|c| c.enabled)
+            .unwrap_or(true)
     }
 }
 
@@ -332,6 +366,14 @@ impl GodObjectContractConfig {
     }
 }
 
+/// Configuration for hollow TODO detection.
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct HollowTodosConfig {
+    /// Whether hollow TODO detection is enabled (default: true)
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
 /// Validate a contract for correctness.
 pub fn validate(contract: &Contract) -> anyhow::Result<()> {
     // Validate mode
@@ -353,6 +395,12 @@ pub fn validate(contract: &Contract) -> anyhow::Result<()> {
             regex::Regex::new(&s.pattern)
                 .map_err(|e| anyhow::anyhow!("invalid mock signature {:?}: {}", s.pattern, e))?;
         }
+    }
+
+    // Validate excluded_paths glob patterns compile
+    for pattern in &contract.excluded_paths {
+        globset::Glob::new(pattern)
+            .map_err(|e| anyhow::anyhow!("invalid excluded_paths pattern {:?}: {}", pattern, e))?;
     }
 
     Ok(())

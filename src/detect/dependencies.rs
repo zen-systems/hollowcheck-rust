@@ -179,7 +179,7 @@ async fn check_packages(
                         ),
                         file: loc.file,
                         line: loc.line,
-                        severity: Severity::Error,
+                        severity: Severity::Critical,
                     });
                 }
             }
