@@ -39,6 +39,8 @@ pub struct Contract {
     pub prose: Option<ProseConfig>,
     #[serde(default)]
     pub dependency_verification: Option<DependencyVerificationConfig>,
+    #[serde(default)]
+    pub god_objects: Option<GodObjectContractConfig>,
 }
 
 impl Contract {
@@ -297,6 +299,36 @@ impl RegistryConfig {
             enabled: true,
             timeout_ms: 5000,
         }
+    }
+}
+
+/// Configuration for god object detection in the contract.
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct GodObjectContractConfig {
+    /// Whether god object detection is enabled (default: true when present)
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Maximum lines per file before flagging (default: 500)
+    #[serde(default)]
+    pub max_file_lines: Option<usize>,
+    /// Maximum lines per function before flagging (default: 50)
+    #[serde(default)]
+    pub max_function_lines: Option<usize>,
+    /// Maximum cyclomatic complexity per function (default: 15)
+    #[serde(default)]
+    pub max_function_complexity: Option<usize>,
+    /// Maximum functions per file (default: 20)
+    #[serde(default)]
+    pub max_functions_per_file: Option<usize>,
+    /// Maximum methods per class (default: 15)
+    #[serde(default)]
+    pub max_class_methods: Option<usize>,
+}
+
+impl GodObjectContractConfig {
+    /// Returns whether god object detection is enabled.
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
     }
 }
 

@@ -1,20 +1,6 @@
 version: "1.0"
-name: "testdata-check"
-description: "Contract for testing hollowcheck against testdata"
-
-required_files:
-  - path: "stub.go"
-    required: true
-  - path: "clean.go"
-    required: true
-
-required_symbols:
-  - name: "ProcessData"
-    kind: function
-    file: "stub.go"
-  - name: "ProcessItems"
-    kind: function
-    file: "clean.go"
+name: "generic-quality"
+description: "Language-agnostic code quality contract"
 
 forbidden_patterns:
   - pattern: "TODO"
@@ -31,18 +17,16 @@ mock_signatures:
   patterns:
     - pattern: "example\\.com"
       description: "Placeholder domain"
-    - pattern: "12345|00000|11111"
+    - pattern: "test\\.com"
+      description: "Placeholder domain"
+    - pattern: "foo\\.bar"
+      description: "Placeholder domain"
+    - pattern: "12345|00000|11111|99999"
       description: "Sequential/fake IDs"
     - pattern: "lorem ipsum"
       description: "Placeholder text"
-
-complexity:
-  - symbol: "ProcessData"
-    file: "stub.go"
-    min_complexity: 3
-  - symbol: "ProcessItems"
-    file: "clean.go"
-    min_complexity: 5
+    - pattern: "asdf|qwerty"
+      description: "Keyboard mash placeholder"
 
 god_objects:
   enabled: true

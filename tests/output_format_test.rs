@@ -124,6 +124,10 @@ fn test_json_violations_format() {
             "missing_symbol",
             "low_complexity",
             "missing_test",
+            "hallucinated_dependency",
+            "god_file",
+            "god_function",
+            "god_class",
         ];
         assert!(
             known_rules.contains(&v.rule.as_str()),

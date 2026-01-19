@@ -1,0 +1,66 @@
+version: "1.0"
+name: "javascript-project"
+description: "Quality contract for JavaScript/TypeScript projects"
+
+# Common JS/TS project files
+required_files:
+  - path: "package.json"
+    required: true
+
+# JS/TS-specific forbidden patterns
+forbidden_patterns:
+  - pattern: "TODO"
+    description: "Work-in-progress marker"
+  - pattern: "FIXME"
+    description: "Known issue marker"
+  - pattern: "console\\.log"
+    description: "Debug logging - remove or use proper logger"
+  - pattern: "debugger"
+    description: "Debugger statement - remove before shipping"
+  - pattern: "throw new Error\\(['\"]not implemented"
+    description: "Not implemented - complete before shipping"
+  - pattern: "@ts-ignore"
+    description: "TypeScript ignore - fix the type error"
+
+# Mock data patterns
+mock_signatures:
+  skip_test_files: true
+  patterns:
+    - pattern: "example\\.com"
+      description: "Placeholder domain"
+    - pattern: "localhost:3000"
+      description: "Hardcoded dev server address"
+    - pattern: '"12345"|"00000"'
+      description: "Fake IDs"
+    - pattern: "lorem ipsum"
+      description: "Placeholder text"
+    - pattern: "password123|admin123"
+      description: "Placeholder credentials"
+    - pattern: "sk_test_|pk_test_"
+      description: "Stripe test keys - use environment variables"
+
+# Verify npm dependencies exist
+dependency_verification:
+  enabled: true
+  registries:
+    npm:
+      enabled: true
+      timeout_ms: 5000
+    pypi:
+      enabled: false
+    crates:
+      enabled: false
+    go:
+      enabled: false
+  allowlist:
+    - "@company/*"
+  cache_ttl_hours: 24
+
+# Detect god objects
+god_objects:
+  enabled: true
+  max_file_lines: 500
+  max_function_lines: 50
+  max_function_complexity: 15
+  max_functions_per_file: 20
+  max_class_methods: 15

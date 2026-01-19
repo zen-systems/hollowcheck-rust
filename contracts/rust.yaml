@@ -1,0 +1,66 @@
+version: "1.0"
+name: "rust-project"
+description: "Quality contract for Rust projects"
+
+# Common Rust project files
+required_files:
+  - path: "Cargo.toml"
+    required: true
+  - path: "src/lib.rs"
+    required: false
+  - path: "src/main.rs"
+    required: false
+
+# Rust-specific forbidden patterns
+forbidden_patterns:
+  - pattern: "TODO"
+    description: "Work-in-progress marker"
+  - pattern: "FIXME"
+    description: "Known issue marker"
+  - pattern: "todo!"
+    description: "Todo macro - implement before shipping"
+  - pattern: "unimplemented!"
+    description: "Unimplemented macro - complete implementation"
+  - pattern: 'panic!\("not implemented'
+    description: "Stub panic - replace with real implementation"
+  - pattern: "unwrap\\(\\)"
+    description: "Consider using expect() or proper error handling"
+
+# Mock data patterns
+mock_signatures:
+  skip_test_files: true
+  patterns:
+    - pattern: "example\\.com"
+      description: "Placeholder domain"
+    - pattern: "127\\.0\\.0\\.1:8080"
+      description: "Hardcoded local address"
+    - pattern: '"12345"|"00000"'
+      description: "Fake IDs"
+    - pattern: "lorem ipsum"
+      description: "Placeholder text"
+    - pattern: "password123|secret123"
+      description: "Placeholder credentials"
+
+# Verify Rust dependencies exist
+dependency_verification:
+  enabled: true
+  registries:
+    crates:
+      enabled: true
+      timeout_ms: 5000
+    pypi:
+      enabled: false
+    npm:
+      enabled: false
+    go:
+      enabled: false
+  cache_ttl_hours: 24
+
+# Detect god objects
+god_objects:
+  enabled: true
+  max_file_lines: 500
+  max_function_lines: 50
+  max_function_complexity: 15
+  max_functions_per_file: 20
+  max_class_methods: 15

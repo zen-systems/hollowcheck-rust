@@ -1,0 +1,33 @@
+version: "1.0"
+name: "hollowcheck-rust"
+description: "Contract for the hollowcheck Rust codebase"
+
+required_files:
+  - path: "Cargo.toml"
+    required: true
+  - path: "src/lib.rs"
+    required: true
+  - path: "src/main.rs"
+    required: true
+
+forbidden_patterns:
+  - pattern: "TODO"
+    description: "Work-in-progress marker"
+  - pattern: "FIXME"
+    description: "Known issue marker"
+
+mock_signatures:
+  skip_test_files: true
+  patterns:
+    - pattern: "example\\.com"
+      description: "Placeholder domain"
+    - pattern: "lorem ipsum"
+      description: "Placeholder text"
+
+god_objects:
+  enabled: true
+  max_file_lines: 500
+  max_function_lines: 50
+  max_function_complexity: 15
+  max_functions_per_file: 20
+  max_class_methods: 15

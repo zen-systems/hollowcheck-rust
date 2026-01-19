@@ -1,21 +1,8 @@
 version: "1.0"
-name: "testdata-check"
-description: "Contract for testing hollowcheck against testdata"
+name: "generic"
+description: "Language-agnostic code quality contract - works on any codebase"
 
-required_files:
-  - path: "stub.go"
-    required: true
-  - path: "clean.go"
-    required: true
-
-required_symbols:
-  - name: "ProcessData"
-    kind: function
-    file: "stub.go"
-  - name: "ProcessItems"
-    kind: function
-    file: "clean.go"
-
+# Patterns that indicate incomplete work
 forbidden_patterns:
   - pattern: "TODO"
     description: "Work-in-progress marker"
@@ -25,25 +12,27 @@ forbidden_patterns:
     description: "Workaround marker"
   - pattern: "XXX"
     description: "Attention marker"
+  - pattern: "PLACEHOLDER"
+    description: "Placeholder marker"
 
+# Mock/placeholder data that shouldn't be in production
 mock_signatures:
   skip_test_files: true
   patterns:
     - pattern: "example\\.com"
       description: "Placeholder domain"
-    - pattern: "12345|00000|11111"
+    - pattern: "test\\.com"
+      description: "Placeholder domain"
+    - pattern: "foo\\.bar"
+      description: "Placeholder domain"
+    - pattern: "12345|00000|11111|99999"
       description: "Sequential/fake IDs"
     - pattern: "lorem ipsum"
       description: "Placeholder text"
+    - pattern: "asdf|qwerty"
+      description: "Keyboard mash placeholder"
 
-complexity:
-  - symbol: "ProcessData"
-    file: "stub.go"
-    min_complexity: 3
-  - symbol: "ProcessItems"
-    file: "clean.go"
-    min_complexity: 5
-
+# Detect overly large files, functions, and classes
 god_objects:
   enabled: true
   max_file_lines: 500

@@ -3,6 +3,7 @@
 mod complexity;
 mod dependencies;
 mod files;
+mod god_objects;
 mod imports;
 mod mocks;
 mod patterns;
@@ -15,6 +16,7 @@ mod types;
 pub use complexity::detect_low_complexity;
 pub use dependencies::detect_hallucinated_dependencies;
 pub use files::detect_missing_files;
+pub use god_objects::{detect_god_objects, GodObjectConfig};
 pub use imports::{extract_imports, ImportedDependency};
 pub use mocks::detect_mock_data;
 pub use patterns::detect_forbidden_patterns;

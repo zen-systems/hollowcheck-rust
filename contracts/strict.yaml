@@ -1,0 +1,75 @@
+version: "1.0"
+name: "strict"
+description: "Strict quality contract with tight thresholds - for production-ready code"
+
+# Strict forbidden patterns
+forbidden_patterns:
+  - pattern: "TODO"
+    description: "Work-in-progress marker"
+  - pattern: "FIXME"
+    description: "Known issue marker"
+  - pattern: "HACK"
+    description: "Workaround marker"
+  - pattern: "XXX"
+    description: "Attention marker"
+  - pattern: "PLACEHOLDER"
+    description: "Placeholder marker"
+  - pattern: "WIP"
+    description: "Work in progress"
+  - pattern: "TBD"
+    description: "To be determined"
+  - pattern: "TEMP"
+    description: "Temporary code"
+
+# Comprehensive mock data patterns
+mock_signatures:
+  skip_test_files: true
+  patterns:
+    - pattern: "example\\.com"
+      description: "Placeholder domain"
+    - pattern: "test\\.com"
+      description: "Placeholder domain"
+    - pattern: "foo\\.bar"
+      description: "Placeholder domain"
+    - pattern: "localhost:\\d+"
+      description: "Hardcoded localhost"
+    - pattern: "127\\.0\\.0\\.1"
+      description: "Hardcoded loopback"
+    - pattern: "12345|00000|11111|99999"
+      description: "Sequential/fake IDs"
+    - pattern: "lorem ipsum"
+      description: "Placeholder text"
+    - pattern: "asdf|qwerty"
+      description: "Keyboard mash placeholder"
+    - pattern: "password|secret|apikey"
+      description: "Potential hardcoded credentials"
+    - pattern: "abc123|test123"
+      description: "Test credentials"
+
+# Verify all dependencies
+dependency_verification:
+  enabled: true
+  registries:
+    pypi:
+      enabled: true
+      timeout_ms: 5000
+    npm:
+      enabled: true
+      timeout_ms: 5000
+    crates:
+      enabled: true
+      timeout_ms: 5000
+    go:
+      enabled: true
+      timeout_ms: 5000
+  cache_ttl_hours: 24
+  fail_on_timeout: true
+
+# Strict god object thresholds
+god_objects:
+  enabled: true
+  max_file_lines: 300
+  max_function_lines: 30
+  max_function_complexity: 10
+  max_functions_per_file: 15
+  max_class_methods: 10

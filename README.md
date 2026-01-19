@@ -178,6 +178,15 @@ dependency_verification:
     - "company-*"
   cache_ttl_hours: 24     # Cache registry results
   fail_on_timeout: false  # Don't fail on network errors
+
+# Detect god objects (overly large files/functions/classes)
+god_objects:
+  enabled: true
+  max_file_lines: 500        # Flag files over 500 lines
+  max_function_lines: 50     # Flag functions over 50 lines
+  max_function_complexity: 15 # Flag functions with complexity > 15
+  max_functions_per_file: 20  # Flag files with > 20 functions
+  max_class_methods: 15       # Flag classes with > 15 methods
 ```
 
 ## Available Templates
@@ -189,6 +198,92 @@ dependency_verification:
 | `cli-tool` | Command-line tool with argument parsing |
 | `client-sdk` | API client SDK with auth/retry/error handling |
 | `worker` | Background job processor with graceful shutdown |
+
+## Sample Contracts
+
+Pre-built contracts are available in the `contracts/` directory:
+
+| Contract | Description |
+|----------|-------------|
+| `generic.yaml` | Language-agnostic - works on any codebase |
+| `go.yaml` | Go projects with Go-specific patterns |
+| `rust.yaml` | Rust projects with Rust-specific patterns |
+| `python.yaml` | Python projects with Python-specific patterns |
+| `javascript.yaml` | JavaScript/TypeScript projects |
+| `c-cpp.yaml` | C/C++ projects |
+| `strict.yaml` | Strict thresholds for production-ready code |
+
+### Using Sample Contracts
+
+```bash
+# Use the generic contract on any project
+hollowcheck lint -c contracts/generic.yaml /path/to/project
+
+# Use language-specific contract
+hollowcheck lint -c contracts/go.yaml /path/to/go-project
+hollowcheck lint -c contracts/python.yaml /path/to/python-project
+
+# Use strict contract for production code review
+hollowcheck lint -c contracts/strict.yaml /path/to/project
+```
+
+### Installing Contracts Globally
+
+Copy contracts to a central location for reuse across projects:
+
+```bash
+mkdir -p ~/.config/hollowcheck
+cp contracts/*.yaml ~/.config/hollowcheck/
+
+# Then use from anywhere
+hollowcheck lint -c ~/.config/hollowcheck/generic.yaml .
+```
+
+## God Object Detection
+
+God objects are architectural code smells where components have grown too large or complex. Hollowcheck detects:
+
+| Detection | Rule | Description |
+|-----------|------|-------------|
+| God Files | `god_file` | Files with too many lines or functions |
+| God Functions | `god_function` | Functions that are too long or complex |
+| God Classes | `god_class` | Classes with too many methods |
+
+### Configuration
+
+```yaml
+god_objects:
+  enabled: true
+  max_file_lines: 500        # Flag files over N lines
+  max_function_lines: 50     # Flag functions over N lines
+  max_function_complexity: 15 # Flag functions with cyclomatic complexity > N
+  max_functions_per_file: 20  # Flag files with > N functions
+  max_class_methods: 15       # Flag classes with > N methods
+```
+
+### Example Output
+
+```
+  WARN   god_file           src/monolith.go:1
+          file has 1247 lines, exceeds maximum of 500
+
+  WARN   god_function       src/handler.go:42
+          function 'ProcessEverything' has complexity 23, exceeds maximum of 15
+
+  WARN   god_function       src/utils.go:100
+          function 'DoAllTheThings' has ~85 lines, exceeds maximum of 50
+
+  WARN   god_class          src/service.go:10
+          class 'MegaService' has 32 methods, exceeds maximum of 15
+```
+
+### Recommended Thresholds
+
+| Level | File Lines | Function Lines | Complexity | Functions/File | Methods/Class |
+|-------|------------|----------------|------------|----------------|---------------|
+| Relaxed | 1000 | 100 | 20 | 30 | 25 |
+| Standard | 500 | 50 | 15 | 20 | 15 |
+| Strict | 300 | 30 | 10 | 15 | 10 |
 
 ## Hallucinated Dependency Detection
 
@@ -320,6 +415,9 @@ var testURL = "example.com"
 | Hallucinated dependency | 15 |
 | Forbidden pattern | 10 |
 | Low complexity | 10 |
+| God file | 8 |
+| God function | 8 |
+| God class | 8 |
 | Missing test | 5 |
 | Mock data | 3 |
 

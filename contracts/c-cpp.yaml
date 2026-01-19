@@ -1,0 +1,49 @@
+version: "1.0"
+name: "c-cpp-project"
+description: "Quality contract for C/C++ projects"
+
+# Common C/C++ project files
+required_files:
+  - path: "Makefile"
+    required: false
+  - path: "CMakeLists.txt"
+    required: false
+
+# C/C++-specific forbidden patterns
+forbidden_patterns:
+  - pattern: "TODO"
+    description: "Work-in-progress marker"
+  - pattern: "FIXME"
+    description: "Known issue marker"
+  - pattern: "XXX"
+    description: "Attention marker"
+  - pattern: "#if 0"
+    description: "Disabled code block - remove or enable"
+  - pattern: "assert\\(false\\)"
+    description: "Assert false - implement properly"
+  - pattern: "abort\\(\\)"
+    description: "Abort call - handle error properly"
+
+# Mock data patterns
+mock_signatures:
+  skip_test_files: true
+  patterns:
+    - pattern: "example\\.com"
+      description: "Placeholder domain"
+    - pattern: "127\\.0\\.0\\.1"
+      description: "Hardcoded loopback address"
+    - pattern: "12345|00000"
+      description: "Fake IDs"
+    - pattern: "lorem ipsum"
+      description: "Placeholder text"
+    - pattern: "password|secret"
+      description: "Potential hardcoded credentials"
+
+# Detect god objects
+god_objects:
+  enabled: true
+  max_file_lines: 500
+  max_function_lines: 50
+  max_function_complexity: 15
+  max_functions_per_file: 20
+  max_class_methods: 15

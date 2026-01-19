@@ -15,6 +15,9 @@ pub mod points {
     pub const HALLUCINATED_DEPENDENCY: i32 = 15; // critical - same as missing symbol
     pub const FORBIDDEN_PATTERN: i32 = 10; // error
     pub const LOW_COMPLEXITY: i32 = 10; // error
+    pub const GOD_FILE: i32 = 8; // warning - architectural smell
+    pub const GOD_FUNCTION: i32 = 8; // warning - architectural smell
+    pub const GOD_CLASS: i32 = 8; // warning - architectural smell
     pub const MISSING_TEST: i32 = 5; // warning
     pub const MOCK_DATA: i32 = 3; // warning
 
@@ -79,6 +82,9 @@ fn get_points_for_rule(rule: &str) -> i32 {
         "hallucinated_dependency" => points::HALLUCINATED_DEPENDENCY,
         "forbidden_pattern" => points::FORBIDDEN_PATTERN,
         "low_complexity" => points::LOW_COMPLEXITY,
+        "god_file" => points::GOD_FILE,
+        "god_function" => points::GOD_FUNCTION,
+        "god_class" => points::GOD_CLASS,
         "missing_test" => points::MISSING_TEST,
         "mock_data" => points::MOCK_DATA,
         // Prose rules

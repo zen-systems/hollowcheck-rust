@@ -5,9 +5,10 @@ use std::path::{Path, PathBuf};
 use crate::contract::Contract;
 
 use super::{
-    collect_suppressions, detect_forbidden_patterns, detect_hallucinated_dependencies,
-    detect_low_complexity, detect_missing_files, detect_missing_symbols, detect_missing_tests,
-    detect_mock_data, filter_suppressed, DetectionResult,
+    collect_suppressions, detect_forbidden_patterns, detect_god_objects,
+    detect_hallucinated_dependencies, detect_low_complexity, detect_missing_files,
+    detect_missing_symbols, detect_missing_tests, detect_mock_data, filter_suppressed,
+    DetectionResult, GodObjectConfig,
 };
 
 /// Executes all detection checks against a set of files.
@@ -72,6 +73,21 @@ impl Runner {
                 contract.dependency_verification.as_ref(),
             )?;
             result.merge(dep_result);
+        }
+
+        // Check for god objects (files, functions, classes that are too large)
+        if let Some(god_cfg) = &contract.god_objects {
+            if god_cfg.is_enabled() {
+                let config = GodObjectConfig {
+                    max_file_lines: god_cfg.max_file_lines.unwrap_or(500),
+                    max_function_lines: god_cfg.max_function_lines.unwrap_or(50),
+                    max_function_complexity: god_cfg.max_function_complexity.unwrap_or(15),
+                    max_functions_per_file: god_cfg.max_functions_per_file.unwrap_or(20),
+                    max_class_methods: god_cfg.max_class_methods.unwrap_or(15),
+                };
+                let god_result = detect_god_objects(files, &config)?;
+                result.merge(god_result);
+            }
         }
 
         // Apply suppressions - filter violations and track suppressed ones

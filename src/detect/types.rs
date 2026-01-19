@@ -51,6 +51,13 @@ pub enum ViolationRule {
     MissingTest,
     #[serde(rename = "hallucinated_dependency")]
     HallucinatedDependency,
+    // God object rules
+    #[serde(rename = "god_file")]
+    GodFile,
+    #[serde(rename = "god_function")]
+    GodFunction,
+    #[serde(rename = "god_class")]
+    GodClass,
     // Prose rules
     #[serde(rename = "filler_phrase")]
     FillerPhrase,
@@ -76,6 +83,9 @@ impl ViolationRule {
             ViolationRule::LowComplexity => "low_complexity",
             ViolationRule::MissingTest => "missing_test",
             ViolationRule::HallucinatedDependency => "hallucinated_dependency",
+            ViolationRule::GodFile => "god_file",
+            ViolationRule::GodFunction => "god_function",
+            ViolationRule::GodClass => "god_class",
             ViolationRule::FillerPhrase => "filler_phrase",
             ViolationRule::WeaselWord => "weasel_word",
             ViolationRule::LowDensity => "low_density",
@@ -94,6 +104,9 @@ impl ViolationRule {
             "low_complexity" => Some(ViolationRule::LowComplexity),
             "missing_test" => Some(ViolationRule::MissingTest),
             "hallucinated_dependency" => Some(ViolationRule::HallucinatedDependency),
+            "god_file" => Some(ViolationRule::GodFile),
+            "god_function" => Some(ViolationRule::GodFunction),
+            "god_class" => Some(ViolationRule::GodClass),
             "filler_phrase" => Some(ViolationRule::FillerPhrase),
             "weasel_word" => Some(ViolationRule::WeaselWord),
             "low_density" => Some(ViolationRule::LowDensity),

@@ -1,0 +1,66 @@
+version: "1.0"
+name: "python-project"
+description: "Quality contract for Python projects"
+
+# Common Python project files
+required_files:
+  - path: "requirements.txt"
+    required: false
+  - path: "pyproject.toml"
+    required: false
+  - path: "setup.py"
+    required: false
+
+# Python-specific forbidden patterns
+forbidden_patterns:
+  - pattern: "TODO"
+    description: "Work-in-progress marker"
+  - pattern: "FIXME"
+    description: "Known issue marker"
+  - pattern: "pass\\s*#"
+    description: "Empty pass with comment - implement the function"
+  - pattern: "raise NotImplementedError"
+    description: "Not implemented - complete before shipping"
+  - pattern: "\\.\\.\\."
+    description: "Ellipsis stub - implement the function"
+
+# Mock data patterns
+mock_signatures:
+  skip_test_files: true
+  patterns:
+    - pattern: "example\\.com"
+      description: "Placeholder domain"
+    - pattern: "localhost:5000"
+      description: "Hardcoded Flask dev address"
+    - pattern: '"12345"|"00000"'
+      description: "Fake IDs"
+    - pattern: "lorem ipsum"
+      description: "Placeholder text"
+    - pattern: "password123|admin123"
+      description: "Placeholder credentials"
+    - pattern: "sk-[a-zA-Z0-9]{48}"
+      description: "Potential API key"
+
+# Verify Python dependencies exist
+dependency_verification:
+  enabled: true
+  registries:
+    pypi:
+      enabled: true
+      timeout_ms: 5000
+    npm:
+      enabled: false
+    crates:
+      enabled: false
+    go:
+      enabled: false
+  cache_ttl_hours: 24
+
+# Detect god objects
+god_objects:
+  enabled: true
+  max_file_lines: 500
+  max_function_lines: 50
+  max_function_complexity: 15
+  max_functions_per_file: 20
+  max_class_methods: 15
