@@ -70,11 +70,16 @@ fn calculate_complexities_treesitter(_file_path: &Path, _ext: &str) -> Option<Ve
 }
 
 /// Check that functions meet minimum complexity requirements.
+///
+/// Optimized to only parse files that are explicitly specified in requirements,
+/// rather than parsing all files in the codebase.
 pub fn detect_low_complexity<P1: AsRef<Path>, P2: AsRef<Path>>(
     base_dir: P1,
     files: &[P2],
     requirements: &[ComplexityRequirement],
 ) -> anyhow::Result<DetectionResult> {
+    use std::collections::HashSet;
+
     let mut result = DetectionResult::new();
 
     if requirements.is_empty() {
@@ -83,11 +88,31 @@ pub fn detect_low_complexity<P1: AsRef<Path>, P2: AsRef<Path>>(
 
     let base = base_dir.as_ref();
 
+    // Collect the set of files we need to parse (only those with explicit requirements)
+    let required_files: HashSet<&str> = requirements
+        .iter()
+        .filter_map(|req| req.file.as_deref())
+        .collect();
+
+    // Check if any requirement doesn't specify a file (needs to scan all files)
+    let needs_full_scan = requirements.iter().any(|req| req.file.is_none());
+
     // Build a map of function complexities by file
     let mut funcs_by_file: HashMap<String, Vec<FuncComplexity>> = HashMap::new();
 
     for file in files {
         let path = file.as_ref();
+        let rel_path = path
+            .strip_prefix(base)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_string();
+
+        // Skip files that aren't needed (unless we need a full scan)
+        if !needs_full_scan && !required_files.contains(rel_path.as_str()) {
+            continue;
+        }
+
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
         // Try tree-sitter first, fall back to regex-based extraction
@@ -105,11 +130,6 @@ pub fn detect_low_complexity<P1: AsRef<Path>, P2: AsRef<Path>>(
             }
         };
 
-        let rel_path = path
-            .strip_prefix(base)
-            .unwrap_or(path)
-            .to_string_lossy()
-            .to_string();
         funcs_by_file.insert(rel_path, funcs);
         result.scanned += 1;
     }

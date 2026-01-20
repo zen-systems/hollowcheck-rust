@@ -203,9 +203,12 @@ const PYTHON_COMMON: &[&str] = &[
     "zipimport",
     "zlib",
     "zoneinfo",
-    // Underscore prefixed private modules
+    // Underscore prefixed private modules and special names
     "_thread",
     "__future__",
+    "__main__",
+    // Python 3.14+ modules
+    "annotationlib",
 ];
 
 /// Most common Node.js builtins (not exhaustive).

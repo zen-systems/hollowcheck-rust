@@ -1,7 +1,10 @@
 //! Command-line interface for hollowcheck.
 
 use clap::{Parser, Subcommand};
+use colored::*;
+use indicatif::{ProgressBar, ProgressStyle};
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 use walkdir::WalkDir;
 
 use crate::contract::{self, Contract};
@@ -70,6 +73,22 @@ pub struct LintArgs {
     /// Skip dependency verification (registry lookups)
     #[arg(long)]
     pub skip_registry_check: bool,
+
+    /// Use strict thresholds for AI-generated code (more aggressive detection)
+    #[arg(long)]
+    pub strict: bool,
+
+    /// Use relaxed thresholds for large, mature codebases
+    #[arg(long)]
+    pub relaxed: bool,
+
+    /// Additional glob patterns to exclude from analysis (can be specified multiple times)
+    #[arg(long = "exclude", value_name = "PATTERN")]
+    pub exclude_patterns: Vec<String>,
+
+    /// Include files matching these patterns even if they would normally be excluded
+    #[arg(long = "include", value_name = "PATTERN")]
+    pub include_patterns: Vec<String>,
 }
 
 /// Arguments for the init command.
@@ -138,14 +157,84 @@ fn discover_contract() -> anyhow::Result<PathBuf> {
     )
 }
 
-/// Collect files to scan based on mode and contract settings.
-fn collect_files(root: &Path, contract: &Contract) -> anyhow::Result<Vec<PathBuf>> {
+/// Default directory patterns to exclude from scanning.
+const DEFAULT_EXCLUDED_DIRS: &[&str] = &[
+    // Build artifacts
+    "target",
+    "node_modules",
+    "vendor",
+    "dist",
+    "build",
+    "_build",
+    // Test directories
+    "test",
+    "tests",
+    "__tests__",
+    "__test__",
+    "testdata",
+    "test_data",
+    "test-data",
+    // Example directories
+    "example",
+    "examples",
+    // Benchmark directories
+    "bench",
+    "benches",
+    "benchmark",
+    "benchmarks",
+    // Documentation
+    "doc",
+    "docs",
+    "documentation",
+];
+
+/// Check if a filename indicates a test file.
+fn is_test_file(filename: &str) -> bool {
+    // Common test file patterns across languages
+    filename.ends_with("_test.go")
+        || filename.ends_with("_test.rs")
+        || filename.ends_with("_test.py")
+        || filename.ends_with("_test.js")
+        || filename.ends_with("_test.ts")
+        || filename.ends_with("_test.tsx")
+        || filename.ends_with("_test.jsx")
+        || filename.ends_with(".test.js")
+        || filename.ends_with(".test.ts")
+        || filename.ends_with(".test.tsx")
+        || filename.ends_with(".test.jsx")
+        || filename.ends_with(".spec.js")
+        || filename.ends_with(".spec.ts")
+        || filename.ends_with(".spec.tsx")
+        || filename.ends_with(".spec.jsx")
+        || filename.starts_with("test_")
+        || filename == "conftest.py"
+}
+
+/// Collect files to scan with additional exclude/include patterns.
+fn collect_files_with_patterns(
+    root: &Path,
+    contract: &Contract,
+    extra_excludes: &[String],
+    include_patterns: &[String],
+) -> anyhow::Result<Vec<PathBuf>> {
     let supported_extensions = [
         "go", "rs", "py", "js", "ts", "jsx", "tsx", "java", "kt", "c", "cpp", "h", "hpp",
     ];
 
     let include_test_files = contract.should_include_test_files();
     let mut files = Vec::new();
+
+    // Build extra exclude matchers
+    let extra_matchers: Vec<_> = extra_excludes
+        .iter()
+        .filter_map(|p| globset::Glob::new(p).ok().map(|g| g.compile_matcher()))
+        .collect();
+
+    // Build include matchers
+    let include_matchers: Vec<_> = include_patterns
+        .iter()
+        .filter_map(|p| globset::Glob::new(p).ok().map(|g| g.compile_matcher()))
+        .collect();
 
     for entry in WalkDir::new(root)
         .follow_links(true)
@@ -156,17 +245,8 @@ fn collect_files(root: &Path, contract: &Contract) -> anyhow::Result<Vec<PathBuf
             if e.file_type().is_dir() && name.starts_with('.') {
                 return false;
             }
-            // Skip vendor, node_modules, and test directories
-            if e.file_type().is_dir()
-                && (name == "vendor"
-                    || name == "node_modules"
-                    || name == "testdata"
-                    || name == "test_data"
-                    || name == "tests"
-                    || name == "test"
-                    || name == "__tests__"
-                    || name == "__test__")
-            {
+            // Skip default excluded directories
+            if e.file_type().is_dir() && DEFAULT_EXCLUDED_DIRS.contains(&name.as_ref()) {
                 return false;
             }
             true
@@ -178,17 +258,27 @@ fn collect_files(root: &Path, contract: &Contract) -> anyhow::Result<Vec<PathBuf
             let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
             if supported_extensions.contains(&ext) {
-                // Skip test files unless explicitly included
-                if !include_test_files {
-                    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                    if name.ends_with("_test.go") {
+                let path_str = path.to_string_lossy();
+                let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
+                // Check if file matches include patterns (always include these)
+                let force_include = include_matchers.iter().any(|m| m.is_match(&*path_str));
+
+                if !force_include {
+                    // Skip test files unless explicitly included
+                    if !include_test_files && is_test_file(filename) {
                         continue;
                     }
-                }
 
-                // Skip files matching excluded_paths patterns
-                if contract.is_path_excluded(path) {
-                    continue;
+                    // Skip files matching excluded_paths patterns from contract
+                    if contract.is_path_excluded(path) {
+                        continue;
+                    }
+
+                    // Skip files matching extra exclude patterns from CLI
+                    if extra_matchers.iter().any(|m| m.is_match(&*path_str)) {
+                        continue;
+                    }
                 }
 
                 files.push(path.to_path_buf());
@@ -201,8 +291,15 @@ fn collect_files(root: &Path, contract: &Contract) -> anyhow::Result<Vec<PathBuf
 
 /// Run the lint command.
 pub fn run_lint(args: &LintArgs) -> anyhow::Result<i32> {
-    // Initialize tree-sitter parsers (no-op if feature disabled)
-    parser::init();
+    let start_time = Instant::now();
+    let is_interactive = args.format == "pretty";
+
+    // Show progress only in interactive mode
+    let progress_msg = |msg: &str| {
+        if is_interactive {
+            eprintln!("{}", msg.dimmed());
+        }
+    };
 
     // Validate format
     if args.format != "pretty" && args.format != "json" && args.format != "sarif" {
@@ -220,6 +317,14 @@ pub fn run_lint(args: &LintArgs) -> anyhow::Result<i32> {
         return Ok(EXIT_ERROR);
     }
 
+    // Phase 1: Initialization
+    progress_msg("Initializing parsers...");
+    let init_start = Instant::now();
+    parser::init();
+    if is_interactive && init_start.elapsed().as_secs_f32() > 0.5 {
+        eprintln!("  {} Loaded parsers ({:.1}s)", "✓".green(), init_start.elapsed().as_secs_f32());
+    }
+
     // Discover contract if not specified
     let contract_path = match &args.contract {
         Some(p) => p.clone(),
@@ -233,14 +338,48 @@ pub fn run_lint(args: &LintArgs) -> anyhow::Result<i32> {
         },
     };
 
+    // Validate strict/relaxed flags are not both set
+    if args.strict && args.relaxed {
+        eprintln!("Error: cannot use both --strict and --relaxed flags");
+        return Ok(EXIT_ERROR);
+    }
+
     // Parse contract
-    let contract = match Contract::parse_file(&contract_path) {
+    let mut contract = match Contract::parse_file(&contract_path) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("Error parsing contract: {}", e);
             return Ok(EXIT_ERROR);
         }
     };
+
+    // Apply strict/relaxed thresholds if specified
+    if args.strict || args.relaxed {
+        use crate::detect::GodObjectConfig;
+        let thresholds = if args.strict {
+            GodObjectConfig::strict()
+        } else {
+            GodObjectConfig::relaxed()
+        };
+
+        // Update contract's god_objects config with the selected thresholds
+        let god_cfg = contract.god_objects.get_or_insert(Default::default());
+        if god_cfg.max_file_lines.is_none() {
+            god_cfg.max_file_lines = Some(thresholds.max_file_lines);
+        }
+        if god_cfg.max_function_lines.is_none() {
+            god_cfg.max_function_lines = Some(thresholds.max_function_lines);
+        }
+        if god_cfg.max_function_complexity.is_none() {
+            god_cfg.max_function_complexity = Some(thresholds.max_function_complexity);
+        }
+        if god_cfg.max_functions_per_file.is_none() {
+            god_cfg.max_functions_per_file = Some(thresholds.max_functions_per_file);
+        }
+        if god_cfg.max_class_methods.is_none() {
+            god_cfg.max_class_methods = Some(thresholds.max_class_methods);
+        }
+    }
 
     // Validate contract
     if let Err(e) = contract::validate(&contract) {
@@ -266,9 +405,11 @@ pub fn run_lint(args: &LintArgs) -> anyhow::Result<i32> {
         }
     };
 
-    // Collect files to scan
+    // Phase 2: File collection
+    progress_msg("Scanning files...");
+    let collect_start = Instant::now();
     let files = if metadata.is_dir() {
-        collect_files(&abs_path, &contract)?
+        collect_files_with_patterns(&abs_path, &contract, &args.exclude_patterns, &args.include_patterns)?
     } else {
         vec![abs_path.clone()]
     };
@@ -278,9 +419,44 @@ pub fn run_lint(args: &LintArgs) -> anyhow::Result<i32> {
         return Ok(EXIT_SUCCESS);
     }
 
-    // Run detection
-    let runner = Runner::new(&abs_path).skip_registry_check(args.skip_registry_check);
-    let result = runner.run(&files, &contract)?;
+    if is_interactive {
+        eprintln!("  {} Found {} files ({:.1}s)", "✓".green(), files.len(), collect_start.elapsed().as_secs_f32());
+    }
+
+    // Phase 3: Analysis with progress bar for large file counts
+    let analysis_start = Instant::now();
+    let result = if is_interactive && files.len() > 10 {
+        // Show progress bar for larger codebases
+        let pb = ProgressBar::new(files.len() as u64);
+        pb.set_style(ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} files ({eta})")
+            .unwrap()
+            .progress_chars("#>-"));
+
+        // Clone pb for the closure
+        let pb_clone = pb.clone();
+
+        // Run detection with progress callback
+        let runner = Runner::new(&abs_path)
+            .skip_registry_check(args.skip_registry_check)
+            .with_progress(move |current, _total| {
+                pb_clone.set_position(current as u64);
+            });
+        let result = runner.run(&files, &contract)?;
+
+        pb.finish_and_clear();
+        eprintln!("  {} Analysis complete ({:.1}s)", "✓".green(), analysis_start.elapsed().as_secs_f32());
+        result
+    } else {
+        // No progress bar for small file counts
+        let runner = Runner::new(&abs_path).skip_registry_check(args.skip_registry_check);
+        runner.run(&files, &contract)?
+    };
+
+    if is_interactive && start_time.elapsed().as_secs_f32() > 1.0 {
+        eprintln!("  {} Total time: {:.1}s", "✓".green(), start_time.elapsed().as_secs_f32());
+        eprintln!();
+    }
 
     // Calculate score
     let hollowness = if let Some(threshold) = args.threshold {

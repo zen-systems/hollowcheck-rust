@@ -48,17 +48,39 @@ pub fn extract_imports(file_path: &Path) -> anyhow::Result<Vec<ImportedDependenc
 /// Extract imports from Python source code.
 fn extract_python_imports(content: &str, file: &str) -> Vec<ImportedDependency> {
     lazy_static::lazy_static! {
-        // import foo, bar
-        static ref IMPORT_RE: Regex = Regex::new(r"(?m)^import\s+([a-zA-Z_][a-zA-Z0-9_]*)").unwrap();
-        // from foo import bar
-        static ref FROM_IMPORT_RE: Regex = Regex::new(r"(?m)^from\s+([a-zA-Z_][a-zA-Z0-9_]*)").unwrap();
+        // import foo, bar (must be at start of line, possibly with indentation)
+        static ref IMPORT_RE: Regex = Regex::new(r"^\s*import\s+([a-zA-Z_][a-zA-Z0-9_]*)").unwrap();
+        // from foo import bar (must have 'import' keyword after module name)
+        static ref FROM_IMPORT_RE: Regex = Regex::new(r"^\s*from\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+import\b").unwrap();
     }
 
     let mut imports = Vec::new();
     let mut seen = HashSet::new();
+    let mut in_docstring = false;
+    let mut docstring_char = '"';
 
     for (line_num, line) in content.lines().enumerate() {
         let trimmed = line.trim();
+
+        // Track docstring state (triple-quoted strings)
+        if !in_docstring {
+            if trimmed.starts_with(r#"""""#) || trimmed.starts_with("'''") {
+                docstring_char = if trimmed.starts_with('"') { '"' } else { '\'' };
+                // Check if docstring ends on same line
+                let rest = &trimmed[3..];
+                let end_pattern = if docstring_char == '"' { r#"""""# } else { "'''" };
+                if !rest.contains(end_pattern) {
+                    in_docstring = true;
+                }
+                continue;
+            }
+        } else {
+            let end_pattern = if docstring_char == '"' { r#"""""# } else { "'''" };
+            if trimmed.contains(end_pattern) {
+                in_docstring = false;
+            }
+            continue;
+        }
 
         // Skip comments and empty lines
         if trimmed.is_empty() || trimmed.starts_with('#') {
@@ -66,9 +88,9 @@ fn extract_python_imports(content: &str, file: &str) -> Vec<ImportedDependency> 
         }
 
         // import foo
-        if let Some(caps) = IMPORT_RE.captures(trimmed) {
+        if let Some(caps) = IMPORT_RE.captures(line) {
             let name = caps.get(1).unwrap().as_str().to_string();
-            if !is_stdlib(StdlibLanguage::Python, &name) && seen.insert(name.clone()) {
+            if is_valid_python_import(&name) && seen.insert(name.clone()) {
                 imports.push(ImportedDependency {
                     name,
                     registry: RegistryType::PyPI,
@@ -79,9 +101,9 @@ fn extract_python_imports(content: &str, file: &str) -> Vec<ImportedDependency> 
         }
 
         // from foo import bar
-        if let Some(caps) = FROM_IMPORT_RE.captures(trimmed) {
+        if let Some(caps) = FROM_IMPORT_RE.captures(line) {
             let name = caps.get(1).unwrap().as_str().to_string();
-            if !is_stdlib(StdlibLanguage::Python, &name) && seen.insert(name.clone()) {
+            if is_valid_python_import(&name) && seen.insert(name.clone()) {
                 imports.push(ImportedDependency {
                     name,
                     registry: RegistryType::PyPI,
@@ -93,6 +115,26 @@ fn extract_python_imports(content: &str, file: &str) -> Vec<ImportedDependency> 
     }
 
     imports
+}
+
+/// Check if a Python module name is a valid external import to check.
+fn is_valid_python_import(name: &str) -> bool {
+    // Skip stdlib
+    if is_stdlib(StdlibLanguage::Python, name) {
+        return false;
+    }
+
+    // Skip private/internal modules (start with underscore)
+    if name.starts_with('_') {
+        return false;
+    }
+
+    // Skip relative imports (though these shouldn't match our regex)
+    if name.starts_with('.') {
+        return false;
+    }
+
+    true
 }
 
 /// Extract imports from JavaScript/TypeScript source code.

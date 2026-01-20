@@ -23,11 +23,16 @@ pub struct SymbolInfo {
 }
 
 /// Check that all required symbols exist in the codebase.
+///
+/// Optimized to only parse files that are explicitly referenced in requirements,
+/// rather than parsing all files in the codebase.
 pub fn detect_missing_symbols<P1: AsRef<Path>, P2: AsRef<Path>>(
     base_dir: P1,
     files: &[P2],
     symbols: &[RequiredSymbol],
 ) -> anyhow::Result<DetectionResult> {
+    use std::collections::HashSet;
+
     let mut result = DetectionResult::new();
 
     if symbols.is_empty() {
@@ -36,22 +41,30 @@ pub fn detect_missing_symbols<P1: AsRef<Path>, P2: AsRef<Path>>(
 
     let base = base_dir.as_ref();
 
-    // Build a map of found symbols by file
+    // Collect the set of files we actually need to parse
+    let required_files: HashSet<&str> = symbols.iter().map(|s| s.file.as_str()).collect();
+
+    // Build a map of found symbols by file (only for required files)
     let mut found_symbols: HashMap<String, Vec<SymbolInfo>> = HashMap::new();
 
     for file in files {
         let path = file.as_ref();
-        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-        let ext_with_dot = format!(".{}", ext);
-
-        let syms = extract_symbols(path, &ext_with_dot)?;
-
-        // Normalize file path relative to base_dir for matching
         let rel_path = path
             .strip_prefix(base)
             .unwrap_or(path)
             .to_string_lossy()
             .to_string();
+
+        // Skip files that aren't needed
+        if !required_files.contains(rel_path.as_str()) {
+            continue;
+        }
+
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        let ext_with_dot = format!(".{}", ext);
+
+        let syms = extract_symbols(path, &ext_with_dot)?;
+
         found_symbols.insert(rel_path, syms);
         result.scanned += 1;
     }

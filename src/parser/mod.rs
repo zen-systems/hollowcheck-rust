@@ -27,6 +27,15 @@ pub struct Symbol {
     pub line: usize,
 }
 
+/// A symbol with complexity information (used for optimized god object detection).
+#[derive(Debug, Clone)]
+pub struct SymbolWithComplexity {
+    /// The base symbol
+    pub symbol: Symbol,
+    /// Cyclomatic complexity (only computed for functions/methods)
+    pub complexity: Option<i32>,
+}
+
 /// Parser trait for extracting symbols and calculating complexity.
 pub trait Parser: Send + Sync {
     /// Extract all symbols from source code.
@@ -38,6 +47,23 @@ pub trait Parser: Send + Sync {
 
     /// Return the language this parser handles (e.g., "go", "python").
     fn language(&self) -> &str;
+
+    /// Extract all symbols with complexity in one pass (optimized).
+    /// Default implementation calls parse_symbols + complexity for each,
+    /// but tree-sitter implementation does it in one parse.
+    fn parse_symbols_with_complexity(&self, source: &[u8]) -> anyhow::Result<Vec<SymbolWithComplexity>> {
+        let symbols = self.parse_symbols(source)?;
+        let mut result = Vec::with_capacity(symbols.len());
+        for symbol in symbols {
+            let complexity = if symbol.kind == "function" || symbol.kind == "method" {
+                Some(self.complexity(source, &symbol.name)?)
+            } else {
+                None
+            };
+            result.push(SymbolWithComplexity { symbol, complexity });
+        }
+        Ok(result)
+    }
 }
 
 /// Factory function type for creating parser instances.

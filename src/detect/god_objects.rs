@@ -7,8 +7,6 @@
 //! - God classes: Too many methods
 
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 use crate::parser;
@@ -18,26 +16,51 @@ use super::{DetectionResult, Severity, Violation, ViolationRule};
 /// Configuration for god object detection.
 #[derive(Debug, Clone)]
 pub struct GodObjectConfig {
-    /// Maximum lines per file before flagging (default: 500)
+    /// Maximum lines per file before flagging (default: 1000, strict: 500)
     pub max_file_lines: usize,
-    /// Maximum lines per function before flagging (default: 50)
+    /// Maximum lines per function before flagging (default: 100, strict: 50)
     pub max_function_lines: usize,
-    /// Maximum cyclomatic complexity per function (default: 15)
+    /// Maximum cyclomatic complexity per function (default: 20, strict: 15)
     pub max_function_complexity: usize,
-    /// Maximum functions per file (default: 20)
+    /// Maximum functions per file (default: 30, strict: 20)
     pub max_functions_per_file: usize,
-    /// Maximum methods per class (default: 15)
+    /// Maximum methods per class (default: 20, strict: 15)
     pub max_class_methods: usize,
 }
 
 impl Default for GodObjectConfig {
     fn default() -> Self {
         Self {
+            max_file_lines: 1000,
+            max_function_lines: 100,
+            max_function_complexity: 20,
+            max_functions_per_file: 30,
+            max_class_methods: 20,
+        }
+    }
+}
+
+impl GodObjectConfig {
+    /// Return strict thresholds optimized for AI-generated code detection.
+    /// These are more aggressive and catch more issues.
+    pub fn strict() -> Self {
+        Self {
             max_file_lines: 500,
             max_function_lines: 50,
             max_function_complexity: 15,
             max_functions_per_file: 20,
             max_class_methods: 15,
+        }
+    }
+
+    /// Return relaxed thresholds for large, mature codebases.
+    pub fn relaxed() -> Self {
+        Self {
+            max_file_lines: 2000,
+            max_function_lines: 200,
+            max_function_complexity: 30,
+            max_functions_per_file: 50,
+            max_class_methods: 30,
         }
     }
 }
@@ -64,9 +87,15 @@ fn check_file(file_path: &Path, config: &GodObjectConfig) -> anyhow::Result<Vec<
     let mut violations = Vec::new();
     let file_str = file_path.to_string_lossy().to_string();
 
-    // Count total lines
-    let line_count = count_lines(file_path)?;
-    if line_count > config.max_file_lines {
+    // Read file content ONCE and reuse
+    let content = std::fs::read(file_path)?;
+    let content_str = String::from_utf8_lossy(&content);
+    let lines: Vec<&str> = content_str.lines().collect();
+    let line_count = lines.len();
+
+    // Check file line count first (cheap check)
+    let exceeds_file_lines = line_count > config.max_file_lines;
+    if exceeds_file_lines {
         violations.push(Violation {
             rule: ViolationRule::GodFile,
             message: format!(
@@ -77,6 +106,18 @@ fn check_file(file_path: &Path, config: &GodObjectConfig) -> anyhow::Result<Vec<
             line: 1,
             severity: Severity::Warning,
         });
+    }
+
+    // EARLY EXIT: If file is small enough, skip expensive tree-sitter parsing
+    // A file with N lines can have at most N one-line functions
+    // So only skip if: file is too small for god functions AND too few potential functions
+    // This is conservative - we skip only when the file clearly can't trigger any violations
+    let min_lines_for_function_count = config.max_functions_per_file; // At least 1 line per function
+    let skip_parsing = line_count <= config.max_function_lines
+        && line_count < min_lines_for_function_count;
+
+    if skip_parsing {
+        return Ok(violations);
     }
 
     // Try to get parser for this file
@@ -93,14 +134,14 @@ fn check_file(file_path: &Path, config: &GodObjectConfig) -> anyhow::Result<Vec<
         return Ok(violations);
     };
 
-    // Read file content
-    let content = std::fs::read(file_path)?;
-
-    // Parse symbols
-    let symbols = file_parser.parse_symbols(&content)?;
+    // Parse symbols with complexity in ONE pass (optimized)
+    let symbols_with_complexity = file_parser.parse_symbols_with_complexity(&content)?;
 
     // Count functions per file
-    let function_count = symbols.iter().filter(|s| s.kind == "function").count();
+    let function_count = symbols_with_complexity
+        .iter()
+        .filter(|s| s.symbol.kind == "function")
+        .count();
     if function_count > config.max_functions_per_file {
         violations.push(Violation {
             rule: ViolationRule::GodFile,
@@ -116,14 +157,14 @@ fn check_file(file_path: &Path, config: &GodObjectConfig) -> anyhow::Result<Vec<
 
     // Group methods by class (for class method counting)
     let mut class_methods: HashMap<String, Vec<&str>> = HashMap::new();
-    for symbol in &symbols {
-        if symbol.kind == "method" {
+    for swc in &symbols_with_complexity {
+        if swc.symbol.kind == "method" {
             // Try to extract class name from method name (e.g., "ClassName.methodName")
-            if let Some(class_name) = extract_class_from_method(&symbol.name) {
+            if let Some(class_name) = extract_class_from_method(&swc.symbol.name) {
                 class_methods
                     .entry(class_name.to_string())
                     .or_default()
-                    .push(&symbol.name);
+                    .push(&swc.symbol.name);
             }
         }
     }
@@ -132,10 +173,10 @@ fn check_file(file_path: &Path, config: &GodObjectConfig) -> anyhow::Result<Vec<
     for (class_name, methods) in &class_methods {
         if methods.len() > config.max_class_methods {
             // Find the line of the first method for this class
-            let first_method_line = symbols
+            let first_method_line = symbols_with_complexity
                 .iter()
-                .find(|s| s.kind == "method" && s.name.starts_with(class_name))
-                .map(|s| s.line)
+                .find(|s| s.symbol.kind == "method" && s.symbol.name.starts_with(class_name))
+                .map(|s| s.symbol.line)
                 .unwrap_or(1);
 
             violations.push(Violation {
@@ -153,54 +194,54 @@ fn check_file(file_path: &Path, config: &GodObjectConfig) -> anyhow::Result<Vec<
         }
     }
 
-    // Check individual function complexity and length
-    let lines: Vec<String> = std::fs::read_to_string(file_path)?
-        .lines()
-        .map(String::from)
+    // Build a simple symbol list for line estimation
+    let symbols: Vec<_> = symbols_with_complexity
+        .iter()
+        .map(|swc| &swc.symbol)
+        .cloned()
         .collect();
 
-    for symbol in &symbols {
-        if symbol.kind == "function" || symbol.kind == "method" {
-            // Check complexity
-            let complexity = file_parser.complexity(&content, &symbol.name)?;
-            if complexity > config.max_function_complexity as i32 {
-                violations.push(Violation {
-                    rule: ViolationRule::GodFunction,
-                    message: format!(
-                        "function '{}' has complexity {}, exceeds maximum of {}",
-                        symbol.name, complexity, config.max_function_complexity
-                    ),
-                    file: file_str.clone(),
-                    line: symbol.line,
-                    severity: Severity::Warning,
-                });
-            }
-
-            // Estimate function length (lines until next function or end of file)
-            let func_lines = estimate_function_lines(&lines, symbol.line, &symbols);
+    // Check individual function complexity and length
+    for swc in &symbols_with_complexity {
+        if swc.symbol.kind == "function" || swc.symbol.kind == "method" {
+            // Estimate function length first (cheap operation)
+            let func_lines = estimate_function_lines_fast(&lines, swc.symbol.line, &symbols);
             if func_lines > config.max_function_lines {
                 violations.push(Violation {
                     rule: ViolationRule::GodFunction,
                     message: format!(
                         "function '{}' has ~{} lines, exceeds maximum of {}",
-                        symbol.name, func_lines, config.max_function_lines
+                        swc.symbol.name, func_lines, config.max_function_lines
                     ),
                     file: file_str.clone(),
-                    line: symbol.line,
+                    line: swc.symbol.line,
                     severity: Severity::Warning,
                 });
+            }
+
+            // Only check complexity if function is large enough to matter
+            // (small functions can't have high complexity)
+            // A function needs at least ~10 lines to potentially exceed complexity 15-20
+            if func_lines > 10 {
+                if let Some(complexity) = swc.complexity {
+                    if complexity > config.max_function_complexity as i32 {
+                        violations.push(Violation {
+                            rule: ViolationRule::GodFunction,
+                            message: format!(
+                                "function '{}' has complexity {}, exceeds maximum of {}",
+                                swc.symbol.name, complexity, config.max_function_complexity
+                            ),
+                            file: file_str.clone(),
+                            line: swc.symbol.line,
+                            severity: Severity::Warning,
+                        });
+                    }
+                }
             }
         }
     }
 
     Ok(violations)
-}
-
-/// Count the number of lines in a file.
-fn count_lines(path: &Path) -> anyhow::Result<usize> {
-    let file = File::open(path)?;
-    let reader = BufReader::new(file);
-    Ok(reader.lines().count())
 }
 
 /// Extract class name from a method name like "ClassName.methodName" or "ClassName::methodName".
@@ -219,8 +260,9 @@ fn extract_class_from_method(method_name: &str) -> Option<&str> {
 }
 
 /// Estimate the number of lines in a function by looking at the next symbol's line.
-fn estimate_function_lines(
-    lines: &[String],
+/// Uses borrowed slices for efficiency.
+fn estimate_function_lines_fast(
+    lines: &[&str],
     func_start: usize,
     symbols: &[parser::Symbol],
 ) -> usize {

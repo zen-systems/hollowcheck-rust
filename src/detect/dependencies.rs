@@ -141,9 +141,29 @@ pub fn detect_hallucinated_dependencies(
             .push(import);
     }
 
-    // Check each unique package
+    // Filter allowlisted packages before checking
+    let packages_to_check: usize = unique_imports
+        .keys()
+        .filter(|(_, pkg)| !client.is_allowlisted(pkg))
+        .count();
+
+    // Skip if nothing to check
+    if packages_to_check == 0 {
+        return Ok(result);
+    }
+
+    // Check each unique package using tokio runtime
     let runtime = tokio::runtime::Runtime::new()?;
     let violations = runtime.block_on(async { check_packages(&client, unique_imports).await });
+
+    // Log cache stats for debugging (only if HOLLOWCHECK_DEBUG is set)
+    if std::env::var("HOLLOWCHECK_DEBUG").is_ok() {
+        let (hits, misses) = client.cache_stats();
+        eprintln!(
+            "[debug] Registry cache: {} hits, {} misses ({} unique packages checked)",
+            hits, misses, packages_to_check
+        );
+    }
 
     for v in violations {
         result.add_violation(v);
@@ -152,21 +172,40 @@ pub fn detect_hallucinated_dependencies(
     Ok(result)
 }
 
-/// Check packages against registries asynchronously.
+/// Check packages against registries asynchronously with concurrent requests.
+/// Uses buffer_unordered for parallel requests with rate limiting.
 async fn check_packages(
     client: &RegistryClient,
     imports: HashMap<(RegistryType, String), Vec<ImportedDependency>>,
 ) -> Vec<Violation> {
+    use futures::stream::{self, StreamExt};
+
+    // Filter out allowlisted packages first
+    let packages_to_check: Vec<_> = imports
+        .into_iter()
+        .filter(|((_, package), _)| !client.is_allowlisted(package))
+        .collect();
+
+    if packages_to_check.is_empty() {
+        return Vec::new();
+    }
+
+    // Check packages concurrently with up to 50 parallel requests
+    let results: Vec<_> = stream::iter(packages_to_check)
+        .map(|((registry, package), locations)| async move {
+            let status = client.check_package(registry, &package).await;
+            (registry, package, locations, status)
+        })
+        .buffer_unordered(50) // Process up to 50 packages concurrently
+        .collect()
+        .await;
+
+    // Process results into violations
     let mut violations = Vec::new();
+    let fail_on_timeout = client.fail_on_timeout();
 
-    for ((registry, package), locations) in imports {
-        // Skip allowlisted packages
-        if client.is_allowlisted(&package) {
-            continue;
-        }
-
-        // Check the registry
-        match client.check_package(registry, &package).await {
+    for (registry, package, locations, status) in results {
+        match status {
             Ok(PackageStatus::NotFound) => {
                 // Package doesn't exist - create violation for each location
                 for loc in locations {
@@ -187,10 +226,8 @@ async fn check_packages(
                 // Package exists, no violation
             }
             Ok(PackageStatus::Unknown(reason)) => {
-                // Could not determine - warn if fail_on_timeout is false
-                if !client.fail_on_timeout() {
-                    // Just log/skip, don't create violation
-                } else {
+                // Could not determine - warn if fail_on_timeout is set
+                if fail_on_timeout {
                     for loc in locations {
                         violations.push(Violation {
                             rule: ViolationRule::HallucinatedDependency,
@@ -209,7 +246,7 @@ async fn check_packages(
             }
             Err(e) => {
                 // Network error - handle based on config
-                if client.fail_on_timeout() {
+                if fail_on_timeout {
                     for loc in &locations {
                         violations.push(Violation {
                             rule: ViolationRule::HallucinatedDependency,

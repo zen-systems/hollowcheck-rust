@@ -86,12 +86,17 @@ fn get_or_refresh_stdlib(lang: StdlibLanguage) -> HashSet<String> {
     }
 
     // Query runtime
-    let (modules, version) = query_runtime(lang).unwrap_or_else(|| {
+    let (mut modules, version) = query_runtime(lang).unwrap_or_else(|| {
         (
             fallback::get_embedded_fallback(lang),
             "embedded".to_string(),
         )
     });
+
+    // Always merge with fallback to ensure newer/future stdlib modules are included
+    // (e.g., annotationlib in Python 3.14+ won't be detected by older Python runtimes)
+    let fallback = fallback::get_embedded_fallback(lang);
+    modules.extend(fallback);
 
     // Save to disk cache
     save_disk_cache(lang, &modules, &version);

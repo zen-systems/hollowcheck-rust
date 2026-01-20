@@ -141,8 +141,8 @@ impl ViolationRule {
 
     /// Returns the default severity for this rule type.
     /// Critical: Missing implementations, hallucinated dependencies
-    /// Error: Forbidden patterns, low complexity
-    /// Warning: God objects, mock data, hollow TODOs
+    /// Error: Low complexity (stub implementations)
+    /// Warning: Forbidden patterns (TODOs), god objects, mock data, hollow TODOs
     /// Info: Weak prose issues
     pub fn default_severity(&self) -> Severity {
         match self {
@@ -151,11 +151,11 @@ impl ViolationRule {
             ViolationRule::MissingSymbol => Severity::Critical,
             ViolationRule::HallucinatedDependency => Severity::Critical,
 
-            // Error - serious issues
-            ViolationRule::ForbiddenPattern => Severity::Error,
+            // Error - serious issues that should block CI
             ViolationRule::LowComplexity => Severity::Error,
 
-            // Warning - code smells / informational
+            // Warning - code smells that don't affect scoring
+            ViolationRule::ForbiddenPattern => Severity::Warning,
             ViolationRule::GodFile => Severity::Warning,
             ViolationRule::GodFunction => Severity::Warning,
             ViolationRule::GodClass => Severity::Warning,
@@ -192,8 +192,9 @@ pub struct Violation {
 
 impl Violation {
     /// Create a unique key for this violation (for deduplication/comparison).
+    /// Includes rule, file, line, and message to ensure exact duplicates are caught.
     pub fn key(&self) -> String {
-        format!("{}|{}|{}", self.rule, self.file, self.message)
+        format!("{}|{}|{}|{}", self.rule, self.file, self.line, self.message)
     }
 }
 
@@ -229,6 +230,22 @@ impl DetectionResult {
     /// Add a violation to the result.
     pub fn add_violation(&mut self, violation: Violation) {
         self.violations.push(violation);
+    }
+
+    /// Deduplicate violations by removing exact duplicates (same file, line, rule, message).
+    /// This prevents the same violation from being reported multiple times.
+    pub fn deduplicate(&mut self) {
+        use std::collections::HashSet;
+        let mut seen = HashSet::new();
+        self.violations.retain(|v| {
+            let key = v.key();
+            if seen.contains(&key) {
+                false
+            } else {
+                seen.insert(key);
+                true
+            }
+        });
     }
 
     /// Number of suppressed violations.
@@ -274,4 +291,116 @@ impl DetectionResult {
 #[allow(dead_code)]
 pub fn violations_match(a: &Violation, b: &Violation) -> bool {
     a.rule == b.rule && a.file == b.file && a.message == b.message
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_violation(rule: ViolationRule, file: &str, line: usize, message: &str) -> Violation {
+        Violation {
+            rule,
+            message: message.to_string(),
+            file: file.to_string(),
+            line,
+            severity: rule.default_severity(),
+        }
+    }
+
+    #[test]
+    fn test_violation_key() {
+        let v = make_violation(ViolationRule::GodFunction, "src/main.rs", 10, "complexity exceeded");
+        assert_eq!(v.key(), "god_function|src/main.rs|10|complexity exceeded");
+    }
+
+    #[test]
+    fn test_deduplicate_removes_exact_duplicates() {
+        let mut result = DetectionResult::new();
+
+        // Add the same violation twice
+        let v1 = make_violation(ViolationRule::GodFunction, "src/main.rs", 10, "function too complex");
+        let v2 = make_violation(ViolationRule::GodFunction, "src/main.rs", 10, "function too complex");
+        result.add_violation(v1);
+        result.add_violation(v2);
+
+        assert_eq!(result.violations.len(), 2);
+        result.deduplicate();
+        assert_eq!(result.violations.len(), 1);
+    }
+
+    #[test]
+    fn test_deduplicate_keeps_different_violations() {
+        let mut result = DetectionResult::new();
+
+        // Add violations with different messages (same file/line but different reason)
+        let v1 = make_violation(ViolationRule::GodFunction, "src/main.rs", 10, "complexity 18 exceeds 15");
+        let v2 = make_violation(ViolationRule::GodFunction, "src/main.rs", 10, "~73 lines exceeds 50");
+        result.add_violation(v1);
+        result.add_violation(v2);
+
+        assert_eq!(result.violations.len(), 2);
+        result.deduplicate();
+        assert_eq!(result.violations.len(), 2); // Both should remain (different messages)
+    }
+
+    #[test]
+    fn test_deduplicate_keeps_violations_on_different_lines() {
+        let mut result = DetectionResult::new();
+
+        // Add same message but different lines
+        let v1 = make_violation(ViolationRule::ForbiddenPattern, "src/main.rs", 10, "TODO found");
+        let v2 = make_violation(ViolationRule::ForbiddenPattern, "src/main.rs", 20, "TODO found");
+        result.add_violation(v1);
+        result.add_violation(v2);
+
+        assert_eq!(result.violations.len(), 2);
+        result.deduplicate();
+        assert_eq!(result.violations.len(), 2); // Both should remain (different lines)
+    }
+
+    #[test]
+    fn test_deduplicate_keeps_violations_in_different_files() {
+        let mut result = DetectionResult::new();
+
+        // Add same violation in different files
+        let v1 = make_violation(ViolationRule::GodFile, "src/a.rs", 1, "file too large");
+        let v2 = make_violation(ViolationRule::GodFile, "src/b.rs", 1, "file too large");
+        result.add_violation(v1);
+        result.add_violation(v2);
+
+        assert_eq!(result.violations.len(), 2);
+        result.deduplicate();
+        assert_eq!(result.violations.len(), 2); // Both should remain (different files)
+    }
+
+    #[test]
+    fn test_forbidden_pattern_severity_is_warning() {
+        assert_eq!(ViolationRule::ForbiddenPattern.default_severity(), Severity::Warning);
+    }
+
+    #[test]
+    fn test_hallucinated_dependency_severity_is_critical() {
+        assert_eq!(ViolationRule::HallucinatedDependency.default_severity(), Severity::Critical);
+    }
+
+    #[test]
+    fn test_god_object_severities_are_warning() {
+        assert_eq!(ViolationRule::GodFile.default_severity(), Severity::Warning);
+        assert_eq!(ViolationRule::GodFunction.default_severity(), Severity::Warning);
+        assert_eq!(ViolationRule::GodClass.default_severity(), Severity::Warning);
+    }
+
+    #[test]
+    fn test_scoring_only_counts_critical_and_error() {
+        let mut result = DetectionResult::new();
+
+        // Add violations of different severities
+        result.add_violation(make_violation(ViolationRule::MissingFile, "a.rs", 1, "missing")); // Critical
+        result.add_violation(make_violation(ViolationRule::LowComplexity, "b.rs", 1, "stub")); // Error
+        result.add_violation(make_violation(ViolationRule::GodFunction, "c.rs", 1, "too complex")); // Warning
+        result.add_violation(make_violation(ViolationRule::MockData, "d.rs", 1, "mock found")); // Warning
+
+        // Only Critical and Error should count
+        assert_eq!(result.scoring_violation_count(), 2);
+    }
 }

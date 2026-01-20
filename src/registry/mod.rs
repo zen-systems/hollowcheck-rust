@@ -94,6 +94,9 @@ pub struct RegistryClient {
     http: reqwest::Client,
     cache: RegistryCache,
     config: DependencyVerificationConfig,
+    /// Track cache statistics
+    cache_hits: std::sync::atomic::AtomicUsize,
+    cache_misses: std::sync::atomic::AtomicUsize,
 }
 
 impl RegistryClient {
@@ -110,7 +113,17 @@ impl RegistryClient {
             http,
             cache,
             config,
+            cache_hits: std::sync::atomic::AtomicUsize::new(0),
+            cache_misses: std::sync::atomic::AtomicUsize::new(0),
         }
+    }
+
+    /// Get cache statistics (hits, misses).
+    pub fn cache_stats(&self) -> (usize, usize) {
+        (
+            self.cache_hits.load(std::sync::atomic::Ordering::Relaxed),
+            self.cache_misses.load(std::sync::atomic::Ordering::Relaxed),
+        )
     }
 
     /// Check if a package exists in the specified registry.
@@ -127,8 +140,13 @@ impl RegistryClient {
 
         // Check cache first
         if let Some(cached) = self.cache.get(registry, package) {
+            self.cache_hits
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             return Ok(cached);
         }
+
+        self.cache_misses
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
         // Make the request
         let timeout = Duration::from_millis(reg_config.timeout_ms);

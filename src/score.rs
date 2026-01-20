@@ -235,7 +235,7 @@ mod tests {
     #[test]
     fn test_calculate_score() {
         let mut result = DetectionResult::new();
-        result.add_violation(make_violation(ViolationRule::ForbiddenPattern)); // 10 pts (Error - counts)
+        result.add_violation(make_violation(ViolationRule::LowComplexity)); // 10 pts (Error - counts)
         result.add_violation(make_violation(ViolationRule::MockData)); // 3 pts (Warning - doesn't count)
 
         let contract = Contract::default();
@@ -246,7 +246,7 @@ mod tests {
         assert_eq!(score.grade, "A");
         assert!(score.passed); // 10 <= 25
         // But breakdown still includes all violations
-        assert_eq!(score.breakdown.get("forbidden_pattern"), Some(&10));
+        assert_eq!(score.breakdown.get("low_complexity"), Some(&10));
         assert_eq!(score.breakdown.get("mock_data"), Some(&3));
     }
 
@@ -299,7 +299,7 @@ mod tests {
     #[test]
     fn test_calculate_with_custom_threshold() {
         let mut result = DetectionResult::new();
-        result.add_violation(make_violation(ViolationRule::ForbiddenPattern)); // 10 points
+        result.add_violation(make_violation(ViolationRule::LowComplexity)); // 10 points (Error - counts)
 
         let score = calculate_with_threshold(&result, 5);
         assert!(!score.passed); // 10 > 5
@@ -312,18 +312,18 @@ mod tests {
     fn test_calculate_for_new_violations() {
         let mut result = DetectionResult::new();
         // Regular violations (not counted in new_violations mode)
-        result.add_violation(make_violation(ViolationRule::ForbiddenPattern));
-        result.add_violation(make_violation(ViolationRule::ForbiddenPattern));
+        result.add_violation(make_violation(ViolationRule::LowComplexity));
+        result.add_violation(make_violation(ViolationRule::LowComplexity));
         // New violations (only these should count, and only Critical/Error)
         result
             .new_violations
-            .push(make_violation(ViolationRule::ForbiddenPattern)); // 10 pts (Error - counts)
+            .push(make_violation(ViolationRule::LowComplexity)); // 10 pts (Error - counts)
         result
             .new_violations
             .push(make_violation(ViolationRule::MockData)); // 3 pts (Warning - doesn't count)
 
         let score = calculate_for_new_violations(&result, 0);
-        assert_eq!(score.score, 10); // Only ForbiddenPattern (Error) counts
+        assert_eq!(score.score, 10); // Only LowComplexity (Error) counts
         assert!(!score.passed); // 10 > 0
 
         let score = calculate_for_new_violations(&result, 15);

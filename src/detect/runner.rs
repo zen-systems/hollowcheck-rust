@@ -1,6 +1,10 @@
 //! Detection runner that orchestrates all checks.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+
+use rayon::prelude::*;
 
 use crate::contract::Contract;
 
@@ -11,10 +15,14 @@ use super::{
     filter_suppressed, DetectionResult, GodObjectConfig,
 };
 
+/// Progress callback type for reporting file processing progress.
+pub type ProgressCallback = Arc<dyn Fn(usize, usize) + Send + Sync>;
+
 /// Executes all detection checks against a set of files.
 pub struct Runner {
     base_dir: PathBuf,
     skip_registry_check: bool,
+    progress_callback: Option<ProgressCallback>,
 }
 
 impl Runner {
@@ -23,6 +31,7 @@ impl Runner {
         Self {
             base_dir: base_dir.as_ref().to_path_buf(),
             skip_registry_check: false,
+            progress_callback: None,
         }
     }
 
@@ -32,32 +41,108 @@ impl Runner {
         self
     }
 
+    /// Set a progress callback that will be called as files are processed.
+    /// The callback receives (current_count, total_count).
+    pub fn with_progress<F>(mut self, callback: F) -> Self
+    where
+        F: Fn(usize, usize) + Send + Sync + 'static,
+    {
+        self.progress_callback = Some(Arc::new(callback));
+        self
+    }
+
     /// Run all detection checks defined in the contract.
     pub fn run(&self, files: &[PathBuf], contract: &Contract) -> anyhow::Result<DetectionResult> {
         let mut result = DetectionResult::new();
+        let total_files = files.len();
+        let processed = Arc::new(AtomicUsize::new(0));
 
-        // Collect suppressions from all files
+        // Collect suppressions from all files (parallelized)
         let suppression_map = collect_suppressions(files)?;
         let all_suppressions: Vec<_> = suppression_map.values().flatten().cloned().collect();
 
-        // Check required files
+        // Check required files (not file-parallel, quick)
         let file_result = detect_missing_files(&self.base_dir, &contract.required_files)?;
         result.merge(file_result);
 
-        // Scan for forbidden patterns
-        let pattern_result = detect_forbidden_patterns(files, &contract.forbidden_patterns)?;
-        result.merge(pattern_result);
+        // Build god object config if enabled
+        let god_config = contract.god_objects.as_ref().and_then(|god_cfg| {
+            if god_cfg.is_enabled() {
+                let defaults = GodObjectConfig::default();
+                Some(GodObjectConfig {
+                    max_file_lines: god_cfg.max_file_lines.unwrap_or(defaults.max_file_lines),
+                    max_function_lines: god_cfg
+                        .max_function_lines
+                        .unwrap_or(defaults.max_function_lines),
+                    max_function_complexity: god_cfg
+                        .max_function_complexity
+                        .unwrap_or(defaults.max_function_complexity),
+                    max_functions_per_file: god_cfg
+                        .max_functions_per_file
+                        .unwrap_or(defaults.max_functions_per_file),
+                    max_class_methods: god_cfg
+                        .max_class_methods
+                        .unwrap_or(defaults.max_class_methods),
+                })
+            } else {
+                None
+            }
+        });
 
-        // Scan for mock data signatures
-        let mock_result = detect_mock_data(files, contract.mock_signatures.as_ref())?;
-        result.merge(mock_result);
+        // Run per-file detectors in parallel
+        let detect_todos = contract.detect_hollow_todos();
+        let patterns = &contract.forbidden_patterns;
+        let mock_config = contract.mock_signatures.as_ref();
+        let progress_cb = self.progress_callback.clone();
+        let processed_clone = processed.clone();
 
-        // Detect hollow TODOs (context-less TODO markers)
-        if contract.detect_hollow_todos() {
-            let todo_result = detect_hollow_todos(files)?;
-            result.merge(todo_result);
+        let file_results: Vec<DetectionResult> = files
+            .par_iter()
+            .map(|file| {
+                let mut file_result = DetectionResult::new();
+
+                // Forbidden patterns
+                if !patterns.is_empty() {
+                    if let Ok(r) = detect_forbidden_patterns(&[file.clone()], patterns) {
+                        file_result.merge(r);
+                    }
+                }
+
+                // Mock data
+                if let Ok(r) = detect_mock_data(&[file.clone()], mock_config) {
+                    file_result.merge(r);
+                }
+
+                // Hollow TODOs
+                if detect_todos {
+                    if let Ok(r) = detect_hollow_todos(&[file.clone()]) {
+                        file_result.merge(r);
+                    }
+                }
+
+                // God objects
+                if let Some(ref config) = god_config {
+                    if let Ok(r) = detect_god_objects(&[file.clone()], config) {
+                        file_result.merge(r);
+                    }
+                }
+
+                // Update progress
+                let current = processed_clone.fetch_add(1, Ordering::SeqCst) + 1;
+                if let Some(ref cb) = progress_cb {
+                    cb(current, total_files);
+                }
+
+                file_result
+            })
+            .collect();
+
+        // Merge all file results
+        for r in file_results {
+            result.merge(r);
         }
 
+        // Non-parallelizable checks (require cross-file context)
         // Check required symbols
         let symbol_result =
             detect_missing_symbols(&self.base_dir, files, &contract.required_symbols)?;
@@ -81,20 +166,8 @@ impl Runner {
             result.merge(dep_result);
         }
 
-        // Check for god objects (files, functions, classes that are too large)
-        if let Some(god_cfg) = &contract.god_objects {
-            if god_cfg.is_enabled() {
-                let config = GodObjectConfig {
-                    max_file_lines: god_cfg.max_file_lines.unwrap_or(500),
-                    max_function_lines: god_cfg.max_function_lines.unwrap_or(50),
-                    max_function_complexity: god_cfg.max_function_complexity.unwrap_or(15),
-                    max_functions_per_file: god_cfg.max_functions_per_file.unwrap_or(20),
-                    max_class_methods: god_cfg.max_class_methods.unwrap_or(15),
-                };
-                let god_result = detect_god_objects(files, &config)?;
-                result.merge(god_result);
-            }
-        }
+        // Deduplicate violations before applying suppressions
+        result.deduplicate();
 
         // Apply suppressions - filter violations and track suppressed ones
         if !all_suppressions.is_empty() {

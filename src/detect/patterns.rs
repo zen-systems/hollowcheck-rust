@@ -6,7 +6,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
-use super::{DetectionResult, Severity, Violation, ViolationRule};
+use super::{DetectionResult, Violation, ViolationRule};
 
 /// Pre-compiled pattern with metadata.
 struct CompiledPattern {
@@ -81,7 +81,7 @@ fn scan_file_for_patterns(
                     message: msg,
                     file: file_str.clone(),
                     line: line_number,
-                    severity: Severity::Error,
+                    severity: ViolationRule::ForbiddenPattern.default_severity(),
                 });
             }
         }

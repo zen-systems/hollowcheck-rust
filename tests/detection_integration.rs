@@ -363,27 +363,29 @@ fn test_expected_score_range() {
     let (result, hollowness) = run_detection();
 
     // Expected violations:
-    // - 4 forbidden patterns (TODO, FIXME, HACK, XXX) = 40 points
-    // - Multiple mock data signatures = varies
-    // - 1 low complexity (ProcessData) = 10 points
+    // - 4 forbidden patterns (TODO, FIXME, HACK, XXX) = 40 points (Warning - doesn't count toward score)
+    // - Multiple mock data signatures = varies (Warning - doesn't count toward score)
+    // - 1 low complexity (ProcessData) = 10 points (Error - counts toward score)
     //
-    // Score should be in a reasonable range (likely 40-80 depending on exact mock matches)
+    // Only Critical and Error severities count toward the score.
+    // ForbiddenPattern and MockData are now Warning severity.
 
     println!("Total violations: {}", result.violations.len());
     println!("Score: {} (Grade: {})", hollowness.score, hollowness.grade);
     println!("Breakdown: {:?}", hollowness.breakdown);
 
-    // Score should be significant (many violations)
+    // Score should include at least the low_complexity violation (10 points)
     assert!(
-        hollowness.score >= 40,
-        "Score should be >= 40 with the testdata violations, got {}",
+        hollowness.score >= 10,
+        "Score should be >= 10 with the low_complexity violation, got {}",
         hollowness.score
     );
 
-    // Should likely fail the default threshold of 25
+    // With only Error severity violations counting, score should be 10 (low_complexity)
+    // which is less than the default threshold of 25, so it should pass
     assert!(
-        !hollowness.passed,
-        "Should fail with default threshold, score={} threshold={}",
+        hollowness.passed,
+        "Should pass with default threshold since only Error/Critical count, score={} threshold={}",
         hollowness.score, hollowness.threshold
     );
 }

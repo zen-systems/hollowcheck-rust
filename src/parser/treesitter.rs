@@ -8,7 +8,7 @@ use streaming_iterator::StreamingIterator;
 #[cfg(feature = "tree-sitter")]
 use tree_sitter::{Language, Parser as TsParser, Query, QueryCursor};
 
-use super::{Parser, Symbol};
+use super::{Parser, Symbol, SymbolWithComplexity};
 
 /// Defines how to extract symbol info from query captures.
 #[derive(Debug, Clone)]
@@ -170,6 +170,116 @@ impl Parser for TreeSitterParser {
 
     fn language(&self) -> &str {
         self.config.language_name
+    }
+
+    /// Optimized: Extract all symbols with complexity in one parse pass.
+    /// This avoids re-parsing the file for each function's complexity calculation.
+    fn parse_symbols_with_complexity(&self, source: &[u8]) -> anyhow::Result<Vec<SymbolWithComplexity>> {
+        let tree = self.parse(source)?;
+        let root = tree.root_node();
+
+        if self.config.symbol_query.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // First pass: collect all symbols
+        let query = Query::new(&self.config.language, self.config.symbol_query)?;
+        let mut cursor = QueryCursor::new();
+        let mut matches = cursor.matches(&query, root, source);
+
+        let mut symbols = Vec::new();
+
+        while let Some(m) = matches.next() {
+            for sc in self.config.symbol_captures {
+                for capture in m.captures {
+                    let capture_name = query.capture_names()[capture.index as usize];
+                    if capture_name == sc.name_capture {
+                        let name = capture.node.utf8_text(source).unwrap_or("").to_string();
+                        if !name.is_empty() {
+                            symbols.push(Symbol {
+                                name,
+                                kind: sc.kind.to_string(),
+                                file: String::new(),
+                                line: capture.node.start_position().row + 1,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // If no function query or complexity query, return symbols without complexity
+        if self.config.function_query.is_empty() || self.config.complexity_query.is_empty() {
+            return Ok(symbols
+                .into_iter()
+                .map(|symbol| {
+                    let complexity = if symbol.kind == "function" || symbol.kind == "method" {
+                        Some(1) // Base complexity
+                    } else {
+                        None
+                    };
+                    SymbolWithComplexity { symbol, complexity }
+                })
+                .collect());
+        }
+
+        // Build a map of function names to their AST nodes for O(1) lookup
+        let func_query = Query::new(&self.config.language, self.config.function_query)?;
+        let mut func_cursor = QueryCursor::new();
+        let mut func_matches = func_cursor.matches(&func_query, root, source);
+
+        // Collect all function nodes in one pass
+        let mut func_nodes: std::collections::HashMap<String, tree_sitter::Node> =
+            std::collections::HashMap::new();
+
+        while let Some(m) = func_matches.next() {
+            let mut func_node = None;
+            let mut func_name = None;
+
+            for capture in m.captures {
+                let capture_name = func_query.capture_names()[capture.index as usize];
+                if capture_name == self.config.function_capture {
+                    func_node = Some(capture.node);
+                }
+                if capture_name == self.config.func_name_capture {
+                    func_name = Some(capture.node.utf8_text(source).unwrap_or("").to_string());
+                }
+            }
+
+            if let (Some(node), Some(name)) = (func_node, func_name) {
+                if !name.is_empty() {
+                    func_nodes.insert(name, node);
+                }
+            }
+        }
+
+        // Compute complexity for each function/method using cached nodes
+        let complexity_query = Query::new(&self.config.language, self.config.complexity_query)?;
+
+        let result = symbols
+            .into_iter()
+            .map(|symbol| {
+                let complexity = if symbol.kind == "function" || symbol.kind == "method" {
+                    if let Some(node) = func_nodes.get(&symbol.name) {
+                        // Count complexity branch points within the function node
+                        let mut cc_cursor = QueryCursor::new();
+                        let mut cc_matches = cc_cursor.matches(&complexity_query, *node, source);
+                        let mut cc = 1; // Base complexity
+                        while cc_matches.next().is_some() {
+                            cc += 1;
+                        }
+                        Some(cc)
+                    } else {
+                        Some(1) // Function not found in AST, return base complexity
+                    }
+                } else {
+                    None
+                };
+                SymbolWithComplexity { symbol, complexity }
+            })
+            .collect();
+
+        Ok(result)
     }
 }
 
