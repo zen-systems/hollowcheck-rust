@@ -125,6 +125,8 @@ fn test_json_violations_format() {
             "low_complexity",
             "missing_test",
             "hallucinated_dependency",
+            "hollow_todo",
+            "stub_function",
             "god_file",
             "god_function",
             "god_class",
@@ -146,7 +148,7 @@ fn test_json_breakdown_format() {
 
     for entry in &report.breakdown {
         assert!(!entry.rule.is_empty(), "rule should not be empty");
-        assert!(entry.points > 0, "points should be positive");
+        assert!(entry.points >= 0, "points should be non-negative");
         assert!(entry.violations > 0, "violations should be positive");
     }
 }

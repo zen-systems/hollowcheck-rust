@@ -1,4 +1,16 @@
 //! Detection module for quality issues in code.
+//!
+//! This module provides detection rules for various code quality issues:
+//!
+//! - **AST-backed rules** (tree-sitter):
+//!   - `stubs`: Hollow function detection (empty, panic-only, TODO-only)
+//!   - `symbols`: Required symbol verification
+//!   - `complexity`: Cyclomatic complexity checking
+//!
+//! - **Text-based rules**:
+//!   - `patterns`: Forbidden pattern matching
+//!   - `todos`: Hollow TODO comment detection
+//!   - `mocks`: Mock data detection
 
 mod complexity;
 mod dependencies;
@@ -9,6 +21,7 @@ mod mocks;
 mod patterns;
 mod runner;
 mod stdlib;
+mod stubs;
 mod suppress;
 mod symbols;
 mod todos;
@@ -22,6 +35,7 @@ pub use imports::{extract_imports, ImportedDependency};
 pub use mocks::detect_mock_data;
 pub use patterns::detect_forbidden_patterns;
 pub use runner::Runner;
+pub use stubs::{detect_stub_functions, StubDetectionConfig};
 pub use suppress::{
     collect_suppressions, filter_suppressed, parse_suppressions, SuppressedViolation, Suppression,
     SuppressionType,

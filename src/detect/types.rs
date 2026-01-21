@@ -71,6 +71,9 @@ pub enum ViolationRule {
     /// Hollow TODO - a TODO without meaningful context
     #[serde(rename = "hollow_todo")]
     HollowTodo,
+    /// Stub function - AST-detected hollow function body
+    #[serde(rename = "stub_function")]
+    StubFunction,
     // God object rules
     #[serde(rename = "god_file")]
     GodFile,
@@ -104,6 +107,7 @@ impl ViolationRule {
             ViolationRule::MissingTest => "missing_test",
             ViolationRule::HallucinatedDependency => "hallucinated_dependency",
             ViolationRule::HollowTodo => "hollow_todo",
+            ViolationRule::StubFunction => "stub_function",
             ViolationRule::GodFile => "god_file",
             ViolationRule::GodFunction => "god_function",
             ViolationRule::GodClass => "god_class",
@@ -126,6 +130,7 @@ impl ViolationRule {
             "missing_test" => Some(ViolationRule::MissingTest),
             "hallucinated_dependency" => Some(ViolationRule::HallucinatedDependency),
             "hollow_todo" => Some(ViolationRule::HollowTodo),
+            "stub_function" => Some(ViolationRule::StubFunction),
             "god_file" => Some(ViolationRule::GodFile),
             "god_function" => Some(ViolationRule::GodFunction),
             "god_class" => Some(ViolationRule::GodClass),
@@ -141,7 +146,7 @@ impl ViolationRule {
 
     /// Returns the default severity for this rule type.
     /// Critical: Missing implementations, hallucinated dependencies
-    /// Error: Low complexity (stub implementations)
+    /// Error: Low complexity (stub implementations), stub functions
     /// Warning: Forbidden patterns (TODOs), god objects, mock data, hollow TODOs
     /// Info: Weak prose issues
     pub fn default_severity(&self) -> Severity {
@@ -153,6 +158,7 @@ impl ViolationRule {
 
             // Error - serious issues that should block CI
             ViolationRule::LowComplexity => Severity::Error,
+            ViolationRule::StubFunction => Severity::Error,
 
             // Warning - code smells that don't affect scoring
             ViolationRule::ForbiddenPattern => Severity::Warning,

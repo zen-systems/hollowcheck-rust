@@ -6,13 +6,15 @@ use std::sync::Arc;
 
 use rayon::prelude::*;
 
+use crate::analysis::AnalysisContext;
 use crate::contract::Contract;
 
 use super::{
     collect_suppressions, detect_forbidden_patterns, detect_god_objects,
     detect_hallucinated_dependencies, detect_hollow_todos, detect_low_complexity,
     detect_missing_files, detect_missing_symbols, detect_missing_tests, detect_mock_data,
-    filter_suppressed, DetectionResult, GodObjectConfig,
+    detect_stub_functions, filter_suppressed, DetectionResult, GodObjectConfig,
+    StubDetectionConfig,
 };
 
 /// Progress callback type for reporting file processing progress.
@@ -143,14 +145,23 @@ impl Runner {
         }
 
         // Non-parallelizable checks (require cross-file context)
-        // Check required symbols
+        // Create analysis context for AST-backed detection
+        let analysis_ctx = AnalysisContext::new(&self.base_dir);
+
+        // Check required symbols (uses AST-backed analysis)
         let symbol_result =
-            detect_missing_symbols(&self.base_dir, files, &contract.required_symbols)?;
+            detect_missing_symbols(&analysis_ctx, files, &contract.required_symbols)?;
         result.merge(symbol_result);
 
-        // Check complexity requirements
-        let complexity_result = detect_low_complexity(&self.base_dir, files, &contract.complexity)?;
+        // Check complexity requirements (uses AST-backed analysis)
+        let complexity_result = detect_low_complexity(&analysis_ctx, files, &contract.complexity)?;
         result.merge(complexity_result);
+
+        // Check for stub functions using AST analysis
+        // This uses the new tree-sitter based analyzer for precise detection
+        let stub_config = StubDetectionConfig::default_enabled();
+        let stub_result = detect_stub_functions(files, Some(&stub_config))?;
+        result.merge(stub_result);
 
         // Check required tests
         let test_result = detect_missing_tests(&self.base_dir, files, &contract.required_tests)?;

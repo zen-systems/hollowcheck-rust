@@ -219,8 +219,10 @@ fn test_score_breakdown_matches_violations() {
             ViolationRule::MissingSymbol => 15,
             ViolationRule::ForbiddenPattern => 10,
             ViolationRule::LowComplexity => 10,
+            ViolationRule::StubFunction => 10,
             ViolationRule::MissingTest => 5,
             ViolationRule::MockData => 3,
+            ViolationRule::HollowTodo => 5,
             _ => 0,
         };
         *expected_breakdown.entry(rule_str).or_insert(0) += points;

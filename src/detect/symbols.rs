@@ -1,14 +1,14 @@
 //! Detection of missing required symbols and tests.
 //!
-//! This module provides symbol detection with two strategies:
-//! 1. Tree-sitter based AST parsing (when the feature is enabled)
-//! 2. Regex-based fallback (always available)
+//! This module uses AST-backed analysis via the AnalysisContext to extract
+//! symbols from source files. For supported languages, it uses tree-sitter
+//! for accurate parsing. Unsupported extensions result in explicit failures.
 
-use crate::contract::{RequiredSymbol, RequiredTest, SymbolKind};
-use regex::Regex;
-use std::collections::HashMap;
-use std::fs;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
+
+use crate::analysis::{get_analyzer, AnalysisContext, DeclarationKind, FileFacts};
+use crate::contract::{RequiredSymbol, RequiredTest, SymbolKind};
 
 use super::{DetectionResult, Severity, Violation, ViolationRule};
 
@@ -22,32 +22,48 @@ pub struct SymbolInfo {
     pub line: usize,
 }
 
+/// Convert from analysis DeclarationKind to contract SymbolKind.
+fn declaration_kind_to_symbol_kind(kind: DeclarationKind) -> SymbolKind {
+    match kind {
+        DeclarationKind::Function => SymbolKind::Function,
+        DeclarationKind::Method => SymbolKind::Method,
+        DeclarationKind::Type | DeclarationKind::Struct | DeclarationKind::Enum
+        | DeclarationKind::Interface | DeclarationKind::Trait => SymbolKind::Type,
+        DeclarationKind::Const => SymbolKind::Const,
+    }
+}
+
 /// Check that all required symbols exist in the codebase.
 ///
-/// Optimized to only parse files that are explicitly referenced in requirements,
-/// rather than parsing all files in the codebase.
-pub fn detect_missing_symbols<P1: AsRef<Path>, P2: AsRef<Path>>(
-    base_dir: P1,
-    files: &[P2],
+/// Uses AST-backed analysis for supported languages. Files with unsupported
+/// extensions will cause an explicit failure for any symbols required in them.
+pub fn detect_missing_symbols<P: AsRef<Path>>(
+    analysis_ctx: &AnalysisContext,
+    files: &[P],
     symbols: &[RequiredSymbol],
 ) -> anyhow::Result<DetectionResult> {
-    use std::collections::HashSet;
-
     let mut result = DetectionResult::new();
 
     if symbols.is_empty() {
         return Ok(result);
     }
 
-    let base = base_dir.as_ref();
+    let base = analysis_ctx.base_dir();
 
-    // Collect the set of files we actually need to parse
+    // Collect the set of files we actually need to analyze
     let required_files: HashSet<&str> = symbols.iter().map(|s| s.file.as_str()).collect();
+
+    // Track which required files have unsupported extensions
+    let mut unsupported_files: HashSet<String> = HashSet::new();
 
     // Build a map of found symbols by file (only for required files)
     let mut found_symbols: HashMap<String, Vec<SymbolInfo>> = HashMap::new();
 
-    for file in files {
+    // Sort files for deterministic processing
+    let mut sorted_files: Vec<_> = files.iter().collect();
+    sorted_files.sort_by(|a, b| a.as_ref().cmp(b.as_ref()));
+
+    for file in sorted_files {
         let path = file.as_ref();
         let rel_path = path
             .strip_prefix(base)
@@ -61,16 +77,52 @@ pub fn detect_missing_symbols<P1: AsRef<Path>, P2: AsRef<Path>>(
         }
 
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-        let ext_with_dot = format!(".{}", ext);
 
-        let syms = extract_symbols(path, &ext_with_dot)?;
+        // Check if we have an analyzer for this extension
+        if get_analyzer(ext).is_none() {
+            unsupported_files.insert(rel_path.clone());
+            continue;
+        }
 
-        found_symbols.insert(rel_path, syms);
-        result.scanned += 1;
+        // Use AST-backed analysis
+        match analysis_ctx.analyze_file(path) {
+            Ok(facts) => {
+                let syms = extract_symbols_from_facts(&facts);
+                found_symbols.insert(rel_path, syms);
+                result.scanned += 1;
+            }
+            Err(e) => {
+                // Parse error - emit a finding
+                result.add_violation(Violation {
+                    rule: ViolationRule::MissingSymbol,
+                    message: format!("failed to parse file for symbol extraction: {}", e),
+                    file: rel_path,
+                    line: 0,
+                    severity: Severity::Error,
+                });
+            }
+        }
     }
 
     // Check each required symbol
+    let mut violations: Vec<Violation> = Vec::new();
+
     for req in symbols {
+        // Check if the file has an unsupported extension
+        if unsupported_files.contains(&req.file) {
+            violations.push(Violation {
+                rule: ViolationRule::MissingSymbol,
+                message: format!(
+                    "cannot verify {} {:?}: no analyzer for file extension",
+                    req.kind, req.name
+                ),
+                file: req.file.clone(),
+                line: 0,
+                severity: Severity::Critical,
+            });
+            continue;
+        }
+
         let found = found_symbols
             .get(&req.file)
             .map(|syms| {
@@ -80,7 +132,7 @@ pub fn detect_missing_symbols<P1: AsRef<Path>, P2: AsRef<Path>>(
             .unwrap_or(false);
 
         if !found {
-            result.add_violation(Violation {
+            violations.push(Violation {
                 rule: ViolationRule::MissingSymbol,
                 message: format!("required {} {:?} not found", req.kind, req.name),
                 file: req.file.clone(),
@@ -90,7 +142,30 @@ pub fn detect_missing_symbols<P1: AsRef<Path>, P2: AsRef<Path>>(
         }
     }
 
+    // Sort violations for deterministic output
+    violations.sort_by(|a, b| {
+        (&a.file, a.line, &a.message).cmp(&(&b.file, b.line, &b.message))
+    });
+
+    for v in violations {
+        result.add_violation(v);
+    }
+
     Ok(result)
+}
+
+/// Extract symbols from FileFacts.
+fn extract_symbols_from_facts(facts: &FileFacts) -> Vec<SymbolInfo> {
+    facts
+        .declarations
+        .iter()
+        .map(|decl| SymbolInfo {
+            name: decl.name.clone(),
+            kind: declaration_kind_to_symbol_kind(decl.kind),
+            file: facts.path.clone(),
+            line: decl.span.start_line,
+        })
+        .collect()
 }
 
 /// Check that all required test functions exist.
@@ -107,11 +182,18 @@ pub fn detect_missing_tests<P1: AsRef<Path>, P2: AsRef<Path>>(
 
     let base = base_dir.as_ref();
 
+    // Create an analysis context for this check
+    let analysis_ctx = AnalysisContext::new(base);
+
     // Build a map of found test functions by file
     let mut found_tests: HashMap<String, Vec<String>> = HashMap::new();
 
+    // Sort files for deterministic processing
+    let mut sorted_files: Vec<_> = files.iter().collect();
+    sorted_files.sort_by(|a, b| a.as_ref().cmp(b.as_ref()));
+
     // Only parse test files
-    for file in files {
+    for file in sorted_files {
         let path = file.as_ref();
         let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
@@ -120,23 +202,30 @@ pub fn detect_missing_tests<P1: AsRef<Path>, P2: AsRef<Path>>(
             continue;
         }
 
-        let syms = extract_symbols(path, ".go")?;
         let rel_path = path
             .strip_prefix(base)
             .unwrap_or(path)
             .to_string_lossy()
             .to_string();
 
-        let test_names: Vec<String> = syms
-            .into_iter()
-            .filter(|s| s.kind == SymbolKind::Function && s.name.starts_with("Test"))
-            .map(|s| s.name)
-            .collect();
+        // Use AST-backed analysis
+        if let Ok(facts) = analysis_ctx.analyze_file(path) {
+            let test_names: Vec<String> = facts
+                .declarations
+                .iter()
+                .filter(|d| {
+                    d.kind == DeclarationKind::Function && d.name.starts_with("Test")
+                })
+                .map(|d| d.name.clone())
+                .collect();
 
-        found_tests.insert(rel_path, test_names);
+            found_tests.insert(rel_path, test_names);
+        }
     }
 
     // Check each required test
+    let mut violations: Vec<Violation> = Vec::new();
+
     for req in tests {
         let found = if let Some(ref file) = req.file {
             // Look in specific file
@@ -156,7 +245,7 @@ pub fn detect_missing_tests<P1: AsRef<Path>, P2: AsRef<Path>>(
                 .file
                 .clone()
                 .unwrap_or_else(|| "(any test file)".to_string());
-            result.add_violation(Violation {
+            violations.push(Violation {
                 rule: ViolationRule::MissingTest,
                 message: format!("required test {:?} not found", req.name),
                 file,
@@ -166,361 +255,16 @@ pub fn detect_missing_tests<P1: AsRef<Path>, P2: AsRef<Path>>(
         }
     }
 
+    // Sort violations for deterministic output
+    violations.sort_by(|a, b| {
+        (&a.file, a.line, &a.message).cmp(&(&b.file, b.line, &b.message))
+    });
+
+    for v in violations {
+        result.add_violation(v);
+    }
+
     Ok(result)
-}
-
-/// Extract symbols from a file, using tree-sitter if available.
-fn extract_symbols(path: &Path, ext: &str) -> anyhow::Result<Vec<SymbolInfo>> {
-    // Try tree-sitter parser first
-    #[cfg(feature = "tree-sitter")]
-    if let Some(parser) = crate::parser::for_extension(ext) {
-        let source = fs::read(path)?;
-        let symbols = parser.parse_symbols(&source)?;
-        let file_str = path.to_string_lossy().to_string();
-        return Ok(symbols
-            .into_iter()
-            .map(|s| SymbolInfo {
-                name: s.name,
-                kind: kind_from_str(&s.kind),
-                file: file_str.clone(),
-                line: s.line,
-            })
-            .collect());
-    }
-
-    // Fall back to regex-based extraction
-    match ext {
-        ".go" => extract_symbols_go_regex(path),
-        ".rs" => extract_symbols_rust_regex(path),
-        ".py" => extract_symbols_python_regex(path),
-        ".js" | ".ts" | ".jsx" | ".tsx" => extract_symbols_js_regex(path),
-        ".java" => extract_symbols_java_regex(path),
-        _ => Ok(vec![]),
-    }
-}
-
-/// Convert a string kind to SymbolKind enum.
-fn kind_from_str(s: &str) -> SymbolKind {
-    match s {
-        "function" => SymbolKind::Function,
-        "method" => SymbolKind::Method,
-        "type" | "class" | "interface" | "enum" => SymbolKind::Type,
-        "const" => SymbolKind::Const,
-        _ => SymbolKind::Function, // Default
-    }
-}
-
-/// Extract symbols from a Go file using regex patterns.
-fn extract_symbols_go_regex(file_path: &Path) -> anyhow::Result<Vec<SymbolInfo>> {
-    let content = fs::read_to_string(file_path)?;
-    let file_str = file_path.to_string_lossy().to_string();
-    let mut symbols = Vec::new();
-
-    // Function pattern: func Name( or func (receiver) Name(
-    let func_re = Regex::new(r"(?m)^func\s+(?:\([^)]+\)\s+)?(\w+)\s*\(")?;
-    // Type pattern: type Name struct/interface/etc
-    let type_re = Regex::new(r"(?m)^type\s+(\w+)\s+")?;
-    // Const pattern: const Name = or const ( Name = )
-    let const_re = Regex::new(r"(?m)(?:^const\s+(\w+)\s*=|^\s+(\w+)\s*=)")?;
-
-    for (line_num, line) in content.lines().enumerate() {
-        let line_number = line_num + 1;
-
-        // Check for functions
-        if let Some(caps) = func_re.captures(line) {
-            if let Some(name) = caps.get(1) {
-                // Determine if it's a method (has receiver)
-                let is_method = line.contains("func (");
-                symbols.push(SymbolInfo {
-                    name: name.as_str().to_string(),
-                    kind: if is_method {
-                        SymbolKind::Method
-                    } else {
-                        SymbolKind::Function
-                    },
-                    file: file_str.clone(),
-                    line: line_number,
-                });
-            }
-        }
-
-        // Check for types
-        if let Some(caps) = type_re.captures(line) {
-            if let Some(name) = caps.get(1) {
-                symbols.push(SymbolInfo {
-                    name: name.as_str().to_string(),
-                    kind: SymbolKind::Type,
-                    file: file_str.clone(),
-                    line: line_number,
-                });
-            }
-        }
-
-        // Check for constants
-        if let Some(caps) = const_re.captures(line) {
-            let name = caps.get(1).or_else(|| caps.get(2));
-            if let Some(n) = name {
-                symbols.push(SymbolInfo {
-                    name: n.as_str().to_string(),
-                    kind: SymbolKind::Const,
-                    file: file_str.clone(),
-                    line: line_number,
-                });
-            }
-        }
-    }
-
-    Ok(symbols)
-}
-
-/// Extract symbols from a Rust file using regex patterns.
-fn extract_symbols_rust_regex(file_path: &Path) -> anyhow::Result<Vec<SymbolInfo>> {
-    let content = fs::read_to_string(file_path)?;
-    let file_str = file_path.to_string_lossy().to_string();
-    let mut symbols = Vec::new();
-
-    // Function pattern: fn name( or pub fn name(
-    let func_re = Regex::new(r"(?m)^\s*(?:pub\s+)?fn\s+(\w+)\s*[<(]")?;
-    // Struct/enum pattern
-    let type_re = Regex::new(r"(?m)^\s*(?:pub\s+)?(?:struct|enum|trait|type)\s+(\w+)")?;
-    // Const pattern
-    let const_re = Regex::new(r"(?m)^\s*(?:pub\s+)?const\s+(\w+)\s*:")?;
-
-    for (line_num, line) in content.lines().enumerate() {
-        let line_number = line_num + 1;
-
-        if let Some(caps) = func_re.captures(line) {
-            if let Some(name) = caps.get(1) {
-                symbols.push(SymbolInfo {
-                    name: name.as_str().to_string(),
-                    kind: SymbolKind::Function,
-                    file: file_str.clone(),
-                    line: line_number,
-                });
-            }
-        }
-
-        if let Some(caps) = type_re.captures(line) {
-            if let Some(name) = caps.get(1) {
-                symbols.push(SymbolInfo {
-                    name: name.as_str().to_string(),
-                    kind: SymbolKind::Type,
-                    file: file_str.clone(),
-                    line: line_number,
-                });
-            }
-        }
-
-        if let Some(caps) = const_re.captures(line) {
-            if let Some(name) = caps.get(1) {
-                symbols.push(SymbolInfo {
-                    name: name.as_str().to_string(),
-                    kind: SymbolKind::Const,
-                    file: file_str.clone(),
-                    line: line_number,
-                });
-            }
-        }
-    }
-
-    Ok(symbols)
-}
-
-/// Extract symbols from a Python file using regex patterns.
-fn extract_symbols_python_regex(file_path: &Path) -> anyhow::Result<Vec<SymbolInfo>> {
-    let content = fs::read_to_string(file_path)?;
-    let file_str = file_path.to_string_lossy().to_string();
-    let mut symbols = Vec::new();
-
-    // Function pattern: def name(
-    let func_re = Regex::new(r"(?m)^(?:\s*)def\s+(\w+)\s*\(")?;
-    // Class pattern: class Name
-    let class_re = Regex::new(r"(?m)^class\s+(\w+)")?;
-
-    for (line_num, line) in content.lines().enumerate() {
-        let line_number = line_num + 1;
-
-        if let Some(caps) = func_re.captures(line) {
-            if let Some(name) = caps.get(1) {
-                // Check if it's a method (indented) or function (not indented)
-                let is_method = line.starts_with(' ') || line.starts_with('\t');
-                symbols.push(SymbolInfo {
-                    name: name.as_str().to_string(),
-                    kind: if is_method {
-                        SymbolKind::Method
-                    } else {
-                        SymbolKind::Function
-                    },
-                    file: file_str.clone(),
-                    line: line_number,
-                });
-            }
-        }
-
-        if let Some(caps) = class_re.captures(line) {
-            if let Some(name) = caps.get(1) {
-                symbols.push(SymbolInfo {
-                    name: name.as_str().to_string(),
-                    kind: SymbolKind::Type,
-                    file: file_str.clone(),
-                    line: line_number,
-                });
-            }
-        }
-    }
-
-    Ok(symbols)
-}
-
-/// Extract symbols from a JavaScript/TypeScript file using regex patterns.
-fn extract_symbols_js_regex(file_path: &Path) -> anyhow::Result<Vec<SymbolInfo>> {
-    let content = fs::read_to_string(file_path)?;
-    let file_str = file_path.to_string_lossy().to_string();
-    let mut symbols = Vec::new();
-
-    // Function patterns
-    let func_re = Regex::new(r"(?m)(?:^|\s)(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*[<(]")?;
-    let arrow_re = Regex::new(
-        r"(?m)(?:^|\s)(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?(?:\([^)]*\)|[^=])\s*=>",
-    )?;
-    // Class pattern
-    let class_re = Regex::new(r"(?m)(?:^|\s)(?:export\s+)?class\s+(\w+)")?;
-    // Type/interface pattern (TypeScript)
-    let type_re = Regex::new(r"(?m)(?:^|\s)(?:export\s+)?(?:type|interface)\s+(\w+)")?;
-    // Const pattern
-    let const_re = Regex::new(r"(?m)(?:^|\s)(?:export\s+)?const\s+(\w+)\s*=")?;
-
-    for (line_num, line) in content.lines().enumerate() {
-        let line_number = line_num + 1;
-
-        if let Some(caps) = func_re.captures(line) {
-            if let Some(name) = caps.get(1) {
-                symbols.push(SymbolInfo {
-                    name: name.as_str().to_string(),
-                    kind: SymbolKind::Function,
-                    file: file_str.clone(),
-                    line: line_number,
-                });
-            }
-        }
-
-        if let Some(caps) = arrow_re.captures(line) {
-            if let Some(name) = caps.get(1) {
-                symbols.push(SymbolInfo {
-                    name: name.as_str().to_string(),
-                    kind: SymbolKind::Function,
-                    file: file_str.clone(),
-                    line: line_number,
-                });
-            }
-        }
-
-        if let Some(caps) = class_re.captures(line) {
-            if let Some(name) = caps.get(1) {
-                symbols.push(SymbolInfo {
-                    name: name.as_str().to_string(),
-                    kind: SymbolKind::Type,
-                    file: file_str.clone(),
-                    line: line_number,
-                });
-            }
-        }
-
-        if let Some(caps) = type_re.captures(line) {
-            if let Some(name) = caps.get(1) {
-                symbols.push(SymbolInfo {
-                    name: name.as_str().to_string(),
-                    kind: SymbolKind::Type,
-                    file: file_str.clone(),
-                    line: line_number,
-                });
-            }
-        }
-
-        // Only add const if not already captured as a function (arrow)
-        if !arrow_re.is_match(line) {
-            if let Some(caps) = const_re.captures(line) {
-                if let Some(name) = caps.get(1) {
-                    symbols.push(SymbolInfo {
-                        name: name.as_str().to_string(),
-                        kind: SymbolKind::Const,
-                        file: file_str.clone(),
-                        line: line_number,
-                    });
-                }
-            }
-        }
-    }
-
-    Ok(symbols)
-}
-
-/// Extract symbols from a Java file using regex patterns.
-fn extract_symbols_java_regex(file_path: &Path) -> anyhow::Result<Vec<SymbolInfo>> {
-    let content = fs::read_to_string(file_path)?;
-    let file_str = file_path.to_string_lossy().to_string();
-    let mut symbols = Vec::new();
-
-    // Class pattern
-    let class_re = Regex::new(r"(?m)(?:public\s+)?(?:abstract\s+)?class\s+(\w+)")?;
-    // Interface pattern
-    let interface_re = Regex::new(r"(?m)(?:public\s+)?interface\s+(\w+)")?;
-    // Enum pattern
-    let enum_re = Regex::new(r"(?m)(?:public\s+)?enum\s+(\w+)")?;
-    // Method pattern
-    let method_re = Regex::new(
-        r"(?m)\s+(?:public|private|protected)?\s*(?:static\s+)?(?:\w+(?:<[^>]+>)?)\s+(\w+)\s*\(",
-    )?;
-
-    for (line_num, line) in content.lines().enumerate() {
-        let line_number = line_num + 1;
-
-        if let Some(caps) = class_re.captures(line) {
-            if let Some(name) = caps.get(1) {
-                symbols.push(SymbolInfo {
-                    name: name.as_str().to_string(),
-                    kind: SymbolKind::Type,
-                    file: file_str.clone(),
-                    line: line_number,
-                });
-            }
-        }
-
-        if let Some(caps) = interface_re.captures(line) {
-            if let Some(name) = caps.get(1) {
-                symbols.push(SymbolInfo {
-                    name: name.as_str().to_string(),
-                    kind: SymbolKind::Type,
-                    file: file_str.clone(),
-                    line: line_number,
-                });
-            }
-        }
-
-        if let Some(caps) = enum_re.captures(line) {
-            if let Some(name) = caps.get(1) {
-                symbols.push(SymbolInfo {
-                    name: name.as_str().to_string(),
-                    kind: SymbolKind::Type,
-                    file: file_str.clone(),
-                    line: line_number,
-                });
-            }
-        }
-
-        if let Some(caps) = method_re.captures(line) {
-            if let Some(name) = caps.get(1) {
-                symbols.push(SymbolInfo {
-                    name: name.as_str().to_string(),
-                    kind: SymbolKind::Method,
-                    file: file_str.clone(),
-                    line: line_number,
-                });
-            }
-        }
-    }
-
-    Ok(symbols)
 }
 
 #[cfg(test)]
@@ -529,7 +273,10 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
-    fn test_extract_symbols_go_regex() {
+    fn test_extract_symbols_from_facts() {
+        // Initialize analyzers
+        crate::analysis::register_analyzers();
+
         let temp = TempDir::new().unwrap();
         let file_path = temp.path().join("main.go");
         std::fs::write(
@@ -548,7 +295,10 @@ func main() {}
         )
         .unwrap();
 
-        let symbols = extract_symbols_go_regex(&file_path).unwrap();
+        let analysis_ctx = AnalysisContext::new(temp.path());
+        let facts = analysis_ctx.analyze_file(&file_path).unwrap();
+        let symbols = extract_symbols_from_facts(&facts);
+
         assert!(symbols
             .iter()
             .any(|s| s.name == "Version" && s.kind == SymbolKind::Const));
@@ -565,6 +315,8 @@ func main() {}
 
     #[test]
     fn test_detect_missing_symbols() {
+        crate::analysis::register_analyzers();
+
         let temp = TempDir::new().unwrap();
         let file_path = temp.path().join("main.go");
         std::fs::write(
@@ -577,6 +329,7 @@ func main() {}
         )
         .unwrap();
 
+        let analysis_ctx = AnalysisContext::new(temp.path());
         let symbols = vec![
             RequiredSymbol {
                 name: "main".to_string(),
@@ -590,8 +343,31 @@ func main() {}
             },
         ];
 
-        let result = detect_missing_symbols(temp.path(), &[&file_path], &symbols).unwrap();
+        let result = detect_missing_symbols(&analysis_ctx, &[&file_path], &symbols).unwrap();
         assert_eq!(result.violations.len(), 1);
         assert!(result.violations[0].message.contains("Handler"));
+    }
+
+    #[test]
+    fn test_unsupported_extension_fails() {
+        crate::analysis::register_analyzers();
+
+        let temp = TempDir::new().unwrap();
+        let file_path = temp.path().join("main.xyz");
+        std::fs::write(&file_path, "some content").unwrap();
+
+        let analysis_ctx = AnalysisContext::new(temp.path());
+        let symbols = vec![RequiredSymbol {
+            name: "SomeFunc".to_string(),
+            kind: SymbolKind::Function,
+            file: "main.xyz".to_string(),
+        }];
+
+        let result = detect_missing_symbols(&analysis_ctx, &[&file_path], &symbols).unwrap();
+        assert_eq!(result.violations.len(), 1);
+        assert!(result.violations[0]
+            .message
+            .contains("no analyzer for file extension"));
+        assert_eq!(result.violations[0].severity, Severity::Critical);
     }
 }
