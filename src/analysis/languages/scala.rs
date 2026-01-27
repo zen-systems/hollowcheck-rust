@@ -6,7 +6,7 @@ use streaming_iterator::StreamingIterator;
 use tree_sitter::{Language, Parser, Query, QueryCursor};
 
 use crate::analysis::{
-    ControlFlowInfo, Declaration, DeclarationKind, FileFacts, FunctionBody,
+    ControlFlowInfo, Declaration, DeclarationKind, FileFacts, FunctionBody, Import,
     LanguageAnalyzer, ParsedFile, Span,
 };
 
@@ -43,10 +43,17 @@ const CONTROL_FLOW_QUERY: &str = r#"
 (while_expression) @while
 (match_expression) @match
 (case_clause) @case
-(infix_expression operator: "&&") @and
-(infix_expression operator: "||") @or
 (try_expression) @try
 (catch_clause) @catch
+"#;
+
+/// Tree-sitter query for extracting imports.
+const IMPORT_QUERY: &str = r#"
+; import scala.collection.mutable
+(import_declaration) @import
+
+; Package declaration
+(package_clause) @package
 "#;
 
 pub struct ScalaAnalyzer {
@@ -237,8 +244,6 @@ impl ScalaAnalyzer {
                     "for" | "while" => info.loop_count += 1,
                     "match" => info.switch_count += 1,
                     "case" => info.case_count += 1,
-                    "and" => info.and_count += 1,
-                    "or" => info.or_count += 1,
                     "catch" => info.catch_count += 1,
                     _ => {}
                 }
@@ -246,6 +251,59 @@ impl ScalaAnalyzer {
         }
 
         Ok(info)
+    }
+
+    fn extract_package(&self, parsed: &ParsedFile) -> Option<String> {
+        let query = Query::new(&self.language, IMPORT_QUERY).ok()?;
+        let mut cursor = QueryCursor::new();
+        let mut matches = cursor.matches(&query, parsed.tree.root_node(), &parsed.source[..]);
+
+        while let Some(m) = matches.next() {
+            for capture in m.captures {
+                let name = query.capture_names()[capture.index as usize];
+                if name == "package" {
+                    // Extract text after "package "
+                    let text = parsed.node_text(capture.node).trim();
+                    if let Some(pkg) = text.strip_prefix("package ") {
+                        return Some(pkg.trim().to_string());
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    fn extract_imports(&self, parsed: &ParsedFile) -> anyhow::Result<Vec<Import>> {
+        let query = Query::new(&self.language, IMPORT_QUERY)?;
+        let mut cursor = QueryCursor::new();
+        let mut matches = cursor.matches(&query, parsed.tree.root_node(), &parsed.source[..]);
+
+        let mut imports = Vec::new();
+        let mut seen_paths = std::collections::HashSet::new();
+
+        while let Some(m) = matches.next() {
+            for capture in m.captures {
+                let name = query.capture_names()[capture.index as usize];
+                if name == "import" {
+                    // Extract text after "import "
+                    let text = parsed.node_text(capture.node).trim();
+                    if let Some(path) = text.strip_prefix("import ") {
+                        let path = path.trim().to_string();
+                        if !path.is_empty() && !seen_paths.contains(&path) {
+                            seen_paths.insert(path.clone());
+                            imports.push(Import {
+                                path,
+                                alias: None,
+                                span: Span::from_node(capture.node),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        imports.sort_by(|a, b| a.path.cmp(&b.path));
+        Ok(imports)
     }
 }
 
@@ -282,16 +340,70 @@ impl LanguageAnalyzer for ScalaAnalyzer {
     }
 
     fn extract_facts(&self, parsed: &ParsedFile) -> anyhow::Result<FileFacts> {
+        let package = self.extract_package(parsed);
         let declarations = self.extract_declarations(parsed)?;
+        let imports = self.extract_imports(parsed)?;
 
         Ok(FileFacts {
             path: parsed.path.clone(),
             language: self.language_id().to_string(),
-            package: None,
+            package,
             declarations,
-            imports: Vec::new(),
+            imports,
             has_parse_errors: parsed.tree.root_node().has_error(),
             parse_error: None,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_scala(source: &str) -> (ScalaAnalyzer, ParsedFile) {
+        let analyzer = ScalaAnalyzer::new();
+        let parsed = analyzer
+            .parse(Path::new("Test.scala"), source.as_bytes())
+            .unwrap();
+        (analyzer, parsed)
+    }
+
+    #[test]
+    fn test_extract_imports() {
+        let source = r#"
+package com.example
+
+import scala.collection.mutable
+import scala.util.Try
+
+class Test
+"#;
+        let (analyzer, parsed) = parse_scala(source);
+        let facts = analyzer.extract_facts(&parsed).unwrap();
+
+        assert_eq!(facts.package, Some("com.example".to_string()));
+        assert!(facts.imports.iter().any(|i| i.path == "scala.collection.mutable"));
+        assert!(facts.imports.iter().any(|i| i.path == "scala.util.Try"));
+    }
+
+    #[test]
+    fn test_extract_declarations() {
+        let source = r#"
+class MyClass {
+  def myMethod(): Unit = {}
+}
+
+object MyObject
+
+trait MyTrait {
+  def abstractMethod(): Int
+}
+"#;
+        let (analyzer, parsed) = parse_scala(source);
+        let facts = analyzer.extract_facts(&parsed).unwrap();
+
+        assert!(facts.declarations.iter().any(|d| d.name == "MyClass" && d.kind == DeclarationKind::Type));
+        assert!(facts.declarations.iter().any(|d| d.name == "MyObject" && d.kind == DeclarationKind::Type));
+        assert!(facts.declarations.iter().any(|d| d.name == "MyTrait" && d.kind == DeclarationKind::Interface));
     }
 }

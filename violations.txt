@@ -1,0 +1,287 @@
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/vasttrafik/sensor.py:8
+            package "vasttrafik" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/inels/__init__.py:9
+            package "inelsmqtt" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/mpd/media_player.py:14
+            package "mpd" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/mpd/config_flow.py:8
+            package "mpd" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/event.py:9
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/cover.py:8
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/sensor.py:7
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/models.py:7
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/alarm_control_panel.py:8
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/fan.py:7
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/light.py:10
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/util.py:8
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/diagnostics.py:7
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/number.py:5
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/humidifier.py:8
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/__init__.py:8
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/scene.py:7
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/vacuum.py:7
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/switch.py:8
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/camera.py:5
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/button.py:5
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/type_information.py:9
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/entity.py:7
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/binary_sensor.py:7
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/select.py:5
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/climate.py:9
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/valve.py:5
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/siren.py:7
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/tuya/config_flow.py:8
+            package "tuya_sharing" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/joaoapps_join/__init__.py:5
+            package "pyjoin" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/joaoapps_join/notify.py:8
+            package "pyjoin" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/insteon/api/__init__.py:3
+            package "insteon_frontend" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/mystrom/__init__.py:7
+            package "pymystrom" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/mystrom/config_flow.py:8
+            package "pymystrom" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/familyhub/camera.py:5
+            package "pyfamilyhublocal" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/synology_dsm/common.py:11
+            package "synology_dsm" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/synology_dsm/config_flow.py:12
+            package "synology_dsm" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/frontend/__init__.py:399
+            package "hass_frontend" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/script/scaffold/templates/config_flow_discovery/integration/config_flow.py:3
+            package "my_pypi_dependency" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/meteo_lt/coordinator.py:8
+            package "meteo_lt" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/meteo_lt/config_flow.py:9
+            package "meteo_lt" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/izone/discovery.py:5
+            package "pizone" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/izone/climate.py:9
+            package "pizone" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/hive/sensor.py:8
+            package "apyhiveapi" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/hive/light.py:8
+            package "apyhiveapi" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/hive/__init__.py:11
+            package "apyhiveapi" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/hive/switch.py:8
+            package "apyhiveapi" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/hive/entity.py:7
+            package "apyhiveapi" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/hive/binary_sensor.py:6
+            package "apyhiveapi" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/hive/climate.py:7
+            package "apyhiveapi" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/hive/config_flow.py:8
+            package "apyhiveapi" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/evohome/coordinator.py:12
+            package "evohomeasync2" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/evohome/__init__.py:17
+            package "evohomeasync2" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/evohome/entity.py:8
+            package "evohomeasync2" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/evohome/water_heater.py:8
+            package "evohomeasync2" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/evohome/climate.py:9
+            package "evohomeasync2" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/nsw_fuel_station/__init__.py:9
+            package "nsw_fuel" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/dynalite/convert_config.py:8
+            package "dynalite_devices_lib" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/greeneye_monitor/sensor.py:7
+            package "greeneye" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/greeneye_monitor/__init__.py:7
+            package "greeneye" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/greeneye_monitor/const.py:10
+            package "greeneye" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/improv_ble/config_flow.py:13
+            package "improv_ble_client" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/baidu/tts.py:5
+            package "aip" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/xiaomi_aqara/cover.py:5
+            package "xiaomi_gateway" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/xiaomi_aqara/sensor.py:8
+            package "xiaomi_gateway" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/xiaomi_aqara/light.py:8
+            package "xiaomi_gateway" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/xiaomi_aqara/__init__.py:7
+            package "xiaomi_gateway" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/xiaomi_aqara/switch.py:6
+            package "xiaomi_gateway" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/xiaomi_aqara/lock.py:7
+            package "xiaomi_gateway" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/xiaomi_aqara/entity.py:7
+            package "xiaomi_gateway" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/xiaomi_aqara/binary_sensor.py:6
+            package "xiaomi_gateway" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/xiaomi_aqara/config_flow.py:8
+            package "xiaomi_gateway" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/clementine/media_player.py:8
+            package "clementineremote" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/starlink/coordinator.py:11
+            package "starlink_grpc" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/starlink/config_flow.py:7
+            package "starlink_grpc" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/verisure/coordinator.py:8
+            package "verisure" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/verisure/camera.py:8
+            package "verisure" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/verisure/lock.py:8
+            package "verisure" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/verisure/config_flow.py:8
+            package "verisure" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/cpuspeed/sensor.py:5
+            package "cpuinfo" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/cpuspeed/diagnostics.py:7
+            package "cpuinfo" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/cpuspeed/__init__.py:3
+            package "cpuinfo" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/cpuspeed/config_flow.py:7
+            package "cpuinfo" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/osoenergy/sensor.py:6
+            package "apyosoenergyapi" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/osoenergy/__init__.py:6
+            package "apyosoenergyapi" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/osoenergy/entity.py:3
+            package "apyosoenergyapi" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/osoenergy/binary_sensor.py:6
+            package "apyosoenergyapi" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/osoenergy/water_heater.py:6
+            package "apyosoenergyapi" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/osoenergy/config_flow.py:7
+            package "apyosoenergyapi" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/ccm15/coordinator.py:6
+            package "ccm15" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/ccm15/climate.py:6
+            package "ccm15" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/ccm15/config_flow.py:8
+            package "ccm15" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/dlna_dms/dms.py:18
+            package "didl_lite" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/dlna_dmr/media_player.py:17
+            package "didl_lite" not found in pypi
+--
+    CRIT     hallucinated_dependency/Users/djs/hollowcheck/core/homeassistant/components/anel_pwrctrl/switch.py:9
+            package "anel_pwrctrl" not found in pypi
+--
+    hallucinated_dependency 1425 pts (95 violations)
+    missing_file         180 pts (9 violations)

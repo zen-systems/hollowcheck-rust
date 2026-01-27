@@ -472,7 +472,13 @@ pub fn write_sarif(base_path: &Path, result: &DetectionResult) -> anyhow::Result
 // Pretty Format (matches Go version's visual style)
 // =============================================================================
 
+use std::fmt::Write as FmtWrite;
+use std::io::Write;
+
 /// Write results in pretty (human-readable) format.
+///
+/// Uses buffered output for better performance - all formatting is done
+/// to a String first, then written to stdout in a single operation.
 pub fn write_pretty(
     path: &str,
     contract_path: &str,
@@ -480,126 +486,133 @@ pub fn write_pretty(
     score: &HollownessScore,
     show_suppressed: bool,
 ) {
+    let mut buf = String::with_capacity(4096);
+
     // Header
-    println!();
-    print!("  ");
-    print!("{}", "hollowcheck".cyan().bold());
-    println!(" v{}", env!("CARGO_PKG_VERSION"));
-    println!();
+    writeln!(buf).unwrap();
+    write!(buf, "  {}", "hollowcheck".cyan().bold()).unwrap();
+    writeln!(buf, " v{}", env!("CARGO_PKG_VERSION")).unwrap();
+    writeln!(buf).unwrap();
 
     // Scan info
-    print!("  {}", "Scanning: ".dimmed());
-    println!("{}", path);
-    print!("  {}", "Contract: ".dimmed());
-    println!("{}", contract_path);
+    write!(buf, "  {}", "Scanning: ".dimmed()).unwrap();
+    writeln!(buf, "{}", path).unwrap();
+    write!(buf, "  {}", "Contract: ".dimmed()).unwrap();
+    writeln!(buf, "{}", contract_path).unwrap();
 
     // Show baseline ref if in baseline mode
     if let Some(ref baseline) = result.baseline_ref {
-        print!("  {}", "Baseline: ".dimmed());
-        println!("{}", baseline);
+        write!(buf, "  {}", "Baseline: ".dimmed()).unwrap();
+        writeln!(buf, "{}", baseline).unwrap();
     }
-    println!();
+    writeln!(buf).unwrap();
 
     // Result summary
-    write_result_summary(score, result.suppressed.len());
-    println!();
+    write_result_summary_buf(&mut buf, score, result.suppressed.len());
+    writeln!(buf).unwrap();
 
     // Violations
     if !result.violations.is_empty() {
-        write_violations(&result.violations);
-        println!();
+        write_violations_buf(&mut buf, &result.violations);
+        writeln!(buf).unwrap();
     }
 
     // Suppressed violations
     if !result.suppressed.is_empty() {
-        write_suppressed_summary(&result.suppressed, show_suppressed);
-        println!();
+        write_suppressed_summary_buf(&mut buf, &result.suppressed, show_suppressed);
+        writeln!(buf).unwrap();
     }
 
     // Breakdown
     if !score.breakdown.is_empty() {
-        write_breakdown(score);
-        println!();
+        write_breakdown_buf(&mut buf, score);
+        writeln!(buf).unwrap();
     }
 
     // Final status line
-    write_final_status(score);
-    println!();
+    write_final_status_buf(&mut buf, score);
+    writeln!(buf).unwrap();
+
+    // Write all output at once
+    let stdout = std::io::stdout();
+    let mut handle = stdout.lock();
+    let _ = handle.write_all(buf.as_bytes());
 }
 
-fn write_result_summary(score: &HollownessScore, suppressed_count: usize) {
+fn write_result_summary_buf(buf: &mut String, score: &HollownessScore, suppressed_count: usize) {
     if score.passed {
-        print!("  {}", "✓ PASS".green());
+        write!(buf, "  {}", "✓ PASS".green()).unwrap();
     } else {
-        print!("  {}", "✗ FAIL".red());
+        write!(buf, "  {}", "✗ FAIL".red()).unwrap();
     }
 
-    print!("  Hollowness: ");
-    write_colored_score(score.score);
-    print!("%  Grade: ");
-    write_colored_grade(&score.grade);
+    write!(buf, "  Hollowness: ").unwrap();
+    write_colored_score_buf(buf, score.score);
+    write!(buf, "%  Grade: ").unwrap();
+    write_colored_grade_buf(buf, &score.grade);
 
     if suppressed_count > 0 {
-        print!(
+        write!(
+            buf,
             "  {}",
             format!("({} suppressed)", suppressed_count).dimmed()
-        );
+        ).unwrap();
     }
 
-    println!();
+    writeln!(buf).unwrap();
 }
 
-fn write_colored_score(s: i32) {
+fn write_colored_score_buf(buf: &mut String, s: i32) {
     match s {
-        s if s <= 10 => print!("{}", s.to_string().green().bold()),
-        s if s <= 25 => print!("{}", s.to_string().green()),
-        s if s <= 50 => print!("{}", s.to_string().yellow()),
-        s if s <= 75 => print!("{}", s.to_string().yellow().bold()),
-        _ => print!("{}", s.to_string().red()),
+        s if s <= 10 => write!(buf, "{}", s.to_string().green().bold()).unwrap(),
+        s if s <= 25 => write!(buf, "{}", s.to_string().green()).unwrap(),
+        s if s <= 50 => write!(buf, "{}", s.to_string().yellow()).unwrap(),
+        s if s <= 75 => write!(buf, "{}", s.to_string().yellow().bold()).unwrap(),
+        _ => write!(buf, "{}", s.to_string().red()).unwrap(),
     }
 }
 
-fn write_colored_grade(grade: &str) {
+fn write_colored_grade_buf(buf: &mut String, grade: &str) {
     match grade {
-        "A" => print!("{}", grade.green().bold()),
-        "B" => print!("{}", grade.green()),
-        "C" => print!("{}", grade.yellow()),
-        "D" => print!("{}", grade.yellow().bold()),
-        _ => print!("{}", grade.red()),
+        "A" => write!(buf, "{}", grade.green().bold()).unwrap(),
+        "B" => write!(buf, "{}", grade.green()).unwrap(),
+        "C" => write!(buf, "{}", grade.yellow()).unwrap(),
+        "D" => write!(buf, "{}", grade.yellow().bold()).unwrap(),
+        _ => write!(buf, "{}", grade.red()).unwrap(),
     }
 }
 
-fn write_violations(violations: &[Violation]) {
-    println!("  {} ({}):", "Violations".bold(), violations.len());
-    println!();
+fn write_violations_buf(buf: &mut String, violations: &[Violation]) {
+    writeln!(buf, "  {} ({}):", "Violations".bold(), violations.len()).unwrap();
+    writeln!(buf).unwrap();
 
     for v in violations {
-        write_severity_tag(&v.severity);
-        print!("   ");
-        print!("{:<18}", v.rule.as_str().dimmed());
-        print!("{}", v.file.blue());
+        write_severity_tag_buf(buf, &v.severity);
+        write!(buf, "   ").unwrap();
+        write!(buf, "{:<18}", v.rule.as_str().dimmed()).unwrap();
+        write!(buf, "{}", v.file.blue()).unwrap();
         if v.line > 0 {
-            print!("{}", format!(":{}", v.line).dimmed());
+            write!(buf, "{}", format!(":{}", v.line).dimmed()).unwrap();
         }
-        println!();
+        writeln!(buf).unwrap();
 
         // Message on next line, indented
-        println!("            {}", v.message);
-        println!();
+        writeln!(buf, "            {}", v.message).unwrap();
+        writeln!(buf).unwrap();
     }
 }
 
-fn write_severity_tag(severity: &Severity) {
+fn write_severity_tag_buf(buf: &mut String, severity: &Severity) {
     match severity {
-        Severity::Critical => print!("    {} ", "CRIT ".red().bold()),
-        Severity::Error => print!("    {} ", "ERROR".red()),
-        Severity::Warning => print!("    {} ", "WARN ".yellow()),
-        Severity::Info => print!("    {} ", "INFO ".blue()),
+        Severity::Critical => write!(buf, "    {} ", "CRIT ".red().bold()).unwrap(),
+        Severity::Error => write!(buf, "    {} ", "ERROR".red()).unwrap(),
+        Severity::Warning => write!(buf, "    {} ", "WARN ".yellow()).unwrap(),
+        Severity::Info => write!(buf, "    {} ", "INFO ".blue()).unwrap(),
     }
 }
 
-fn write_breakdown(score: &HollownessScore) {
-    println!("  {}", "Breakdown:".bold());
+fn write_breakdown_buf(buf: &mut String, score: &HollownessScore) {
+    writeln!(buf, "  {}", "Breakdown:".bold()).unwrap();
 
     // Sort rules by points descending
     let mut rules: Vec<(&String, &i32)> = score.breakdown.iter().collect();
@@ -608,51 +621,52 @@ fn write_breakdown(score: &HollownessScore) {
     for (rule, points) in rules {
         let count = score.violation_count(rule);
         let plural = if count != 1 { "s" } else { "" };
-        println!(
+        writeln!(
+            buf,
             "    {:<20} {:>3} pts ({} violation{})",
             rule, points, count, plural
-        );
+        ).unwrap();
     }
 }
 
-fn write_final_status(score: &HollownessScore) {
-    print!("  {}", format!("Threshold: {}", score.threshold).dimmed());
-    print!("  Score: ");
-    write_colored_score(score.score);
-    print!("  ");
+fn write_final_status_buf(buf: &mut String, score: &HollownessScore) {
+    write!(buf, "  {}", format!("Threshold: {}", score.threshold).dimmed()).unwrap();
+    write!(buf, "  Score: ").unwrap();
+    write_colored_score_buf(buf, score.score);
+    write!(buf, "  ").unwrap();
 
     if score.passed {
-        print!("{}", "PASSED".green());
+        write!(buf, "{}", "PASSED".green()).unwrap();
     } else {
-        print!("{}", "FAILED".red());
+        write!(buf, "{}", "FAILED".red()).unwrap();
     }
-    println!();
+    writeln!(buf).unwrap();
 }
 
-fn write_suppressed_summary(suppressed: &[SuppressedViolation], show_details: bool) {
-    println!("  {} ({}):", "Suppressed".dimmed(), suppressed.len());
+fn write_suppressed_summary_buf(buf: &mut String, suppressed: &[SuppressedViolation], show_details: bool) {
+    writeln!(buf, "  {} ({}):", "Suppressed".dimmed(), suppressed.len()).unwrap();
 
     if !show_details {
-        println!("    {}", "(use --show-suppressed to see details)".dimmed());
+        writeln!(buf, "    {}", "(use --show-suppressed to see details)".dimmed()).unwrap();
         return;
     }
 
-    println!();
+    writeln!(buf).unwrap();
     for sv in suppressed {
         let v = &sv.violation;
         let s = &sv.suppression;
 
-        print!("    {:<18}", v.rule.as_str().dimmed());
-        print!("{}", v.file.blue());
+        write!(buf, "    {:<18}", v.rule.as_str().dimmed()).unwrap();
+        write!(buf, "{}", v.file.blue()).unwrap();
         if matches!(s.suppression_type, crate::detect::SuppressionType::File) {
-            print!("{}", ":* (file)".dimmed());
+            write!(buf, "{}", ":* (file)".dimmed()).unwrap();
         } else if v.line > 0 {
-            print!("{}", format!(":{}", v.line).dimmed());
+            write!(buf, "{}", format!(":{}", v.line).dimmed()).unwrap();
         }
-        println!();
+        writeln!(buf).unwrap();
 
         if !s.reason.is_empty() {
-            println!("            {}", format!("reason: {:?}", s.reason).dimmed());
+            writeln!(buf, "            {}", format!("reason: {:?}", s.reason).dimmed()).unwrap();
         }
     }
 }

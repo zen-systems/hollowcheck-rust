@@ -144,17 +144,15 @@ static TEMPLATES: &[Template] = &[
 ];
 
 /// Discover a contract file in the current directory.
-fn discover_contract() -> anyhow::Result<PathBuf> {
+/// Returns None if no contract file is found.
+fn discover_contract() -> Option<PathBuf> {
     for name in DEFAULT_CONTRACT_NAMES {
         let path = PathBuf::from(name);
         if path.exists() {
-            return Ok(path);
+            return Some(path);
         }
     }
-    anyhow::bail!(
-        "no contract file found (looked for {})",
-        DEFAULT_CONTRACT_NAMES.join(", ")
-    )
+    None
 }
 
 /// Default directory patterns to exclude from scanning.
@@ -325,31 +323,44 @@ pub fn run_lint(args: &LintArgs) -> anyhow::Result<i32> {
         eprintln!("  {} Loaded parsers ({:.1}s)", "✓".green(), init_start.elapsed().as_secs_f32());
     }
 
-    // Discover contract if not specified
-    let contract_path = match &args.contract {
-        Some(p) => p.clone(),
-        None => match discover_contract() {
-            Ok(p) => p,
-            Err(e) => {
-                eprintln!("Error: {}", e);
-                eprintln!("Run 'hollowcheck init' to create a contract file");
-                return Ok(EXIT_ERROR);
-            }
-        },
-    };
-
     // Validate strict/relaxed flags are not both set
     if args.strict && args.relaxed {
         eprintln!("Error: cannot use both --strict and --relaxed flags");
         return Ok(EXIT_ERROR);
     }
 
-    // Parse contract
-    let mut contract = match Contract::parse_file(&contract_path) {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("Error parsing contract: {}", e);
-            return Ok(EXIT_ERROR);
+    // Discover contract if not specified, or use default if none found
+    let (contract_path, mut contract) = match &args.contract {
+        Some(p) => {
+            // Explicit contract specified - must exist
+            match Contract::parse_file(p) {
+                Ok(c) => (p.to_string_lossy().to_string(), c),
+                Err(e) => {
+                    eprintln!("Error parsing contract: {}", e);
+                    return Ok(EXIT_ERROR);
+                }
+            }
+        }
+        None => {
+            // No explicit contract - try to discover, or use default
+            match discover_contract() {
+                Some(p) => {
+                    match Contract::parse_file(&p) {
+                        Ok(c) => (p.to_string_lossy().to_string(), c),
+                        Err(e) => {
+                            eprintln!("Error parsing contract: {}", e);
+                            return Ok(EXIT_ERROR);
+                        }
+                    }
+                }
+                None => {
+                    // No contract found - use default
+                    if is_interactive {
+                        eprintln!("{} No contract file found, using default settings", "ℹ".blue());
+                    }
+                    ("<default>".to_string(), Contract::default_contract())
+                }
+            }
         }
     };
 
@@ -466,12 +477,11 @@ pub fn run_lint(args: &LintArgs) -> anyhow::Result<i32> {
     };
 
     // Output results
-    let contract_path_str = contract_path.to_string_lossy().to_string();
     let path_str = args.path.to_string_lossy().to_string();
 
     match args.format.as_str() {
         "json" => {
-            report::write_json(&path_str, &contract_path_str, &result, &hollowness)?;
+            report::write_json(&path_str, &contract_path, &result, &hollowness)?;
         }
         "sarif" => {
             report::write_sarif(&abs_path, &result)?;
@@ -479,7 +489,7 @@ pub fn run_lint(args: &LintArgs) -> anyhow::Result<i32> {
         _ => {
             report::write_pretty(
                 &path_str,
-                &contract_path_str,
+                &contract_path,
                 &result,
                 &hollowness,
                 args.show_suppressed,

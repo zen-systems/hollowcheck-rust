@@ -6,7 +6,7 @@ use streaming_iterator::StreamingIterator;
 use tree_sitter::{Language, Parser, Query, QueryCursor};
 
 use crate::analysis::{
-    ControlFlowInfo, Declaration, DeclarationKind, FileFacts, FunctionBody,
+    ControlFlowInfo, Declaration, DeclarationKind, FileFacts, FunctionBody, Import,
     LanguageAnalyzer, ParsedFile, Span,
 };
 
@@ -68,6 +68,35 @@ const CONTROL_FLOW_QUERY: &str = r#"
 (binary_expression operator: "??") @nullish
 (try_statement) @try
 (catch_clause) @catch
+"#;
+
+/// Tree-sitter query for extracting imports.
+const IMPORT_QUERY: &str = r#"
+; import x from 'module'
+(import_statement
+  source: (string) @import_source
+) @import
+
+; import { x } from 'module'
+(import_statement
+  source: (string) @named_import_source
+) @named_import
+
+; import type { x } from 'module'
+(import_statement
+  source: (string) @type_import_source
+) @type_import
+
+; require('module')
+(call_expression
+  function: (identifier) @require_func (#eq? @require_func "require")
+  arguments: (arguments (string) @require_source)
+) @require
+
+; export * from 'module'
+(export_statement
+  source: (string) @reexport_source
+) @reexport
 "#;
 
 pub struct TypeScriptAnalyzer {
@@ -284,6 +313,48 @@ impl TypeScriptAnalyzer {
 
         Ok(info)
     }
+
+    fn extract_imports(&self, parsed: &ParsedFile) -> anyhow::Result<Vec<Import>> {
+        let query = Query::new(&self.language, IMPORT_QUERY)?;
+        let mut cursor = QueryCursor::new();
+        let mut matches = cursor.matches(&query, parsed.tree.root_node(), &parsed.source[..]);
+
+        let mut imports = Vec::new();
+        let mut seen_paths = std::collections::HashSet::new();
+
+        while let Some(m) = matches.next() {
+            let mut path = String::new();
+            let mut import_node = None;
+
+            for capture in m.captures {
+                let name = query.capture_names()[capture.index as usize];
+                match name {
+                    "import_source" | "named_import_source" | "type_import_source"
+                    | "require_source" | "reexport_source" => {
+                        // Remove quotes from path
+                        let raw = parsed.node_text(capture.node);
+                        path = raw.trim_matches(|c| c == '"' || c == '\'').to_string();
+                        import_node = Some(capture.node);
+                    }
+                    _ => {}
+                }
+            }
+
+            if !path.is_empty() && !seen_paths.contains(&path) {
+                seen_paths.insert(path.clone());
+                if let Some(node) = import_node {
+                    imports.push(Import {
+                        path,
+                        alias: None,
+                        span: Span::from_node(node),
+                    });
+                }
+            }
+        }
+
+        imports.sort_by(|a, b| a.path.cmp(&b.path));
+        Ok(imports)
+    }
 }
 
 impl Default for TypeScriptAnalyzer {
@@ -320,15 +391,103 @@ impl LanguageAnalyzer for TypeScriptAnalyzer {
 
     fn extract_facts(&self, parsed: &ParsedFile) -> anyhow::Result<FileFacts> {
         let declarations = self.extract_declarations(parsed)?;
+        let imports = self.extract_imports(parsed)?;
 
         Ok(FileFacts {
             path: parsed.path.clone(),
             language: self.language_id().to_string(),
             package: None,
             declarations,
-            imports: Vec::new(),
+            imports,
             has_parse_errors: parsed.tree.root_node().has_error(),
             parse_error: None,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_ts(source: &str) -> (TypeScriptAnalyzer, ParsedFile) {
+        let analyzer = TypeScriptAnalyzer::new();
+        let parsed = analyzer
+            .parse(Path::new("test.ts"), source.as_bytes())
+            .unwrap();
+        (analyzer, parsed)
+    }
+
+    #[test]
+    fn test_extract_imports() {
+        let source = r#"
+import express from 'express';
+import { Request, Response } from 'express';
+import type { Handler } from './types';
+import * as fs from 'fs';
+"#;
+        let (analyzer, parsed) = parse_ts(source);
+        let facts = analyzer.extract_facts(&parsed).unwrap();
+
+        assert!(facts.imports.iter().any(|i| i.path == "express"));
+        assert!(facts.imports.iter().any(|i| i.path == "./types"));
+        assert!(facts.imports.iter().any(|i| i.path == "fs"));
+    }
+
+    #[test]
+    fn test_extract_declarations() {
+        let source = r#"
+function hello() {}
+
+const greet = () => {};
+
+class MyClass {
+    method() {}
+}
+
+interface MyInterface {
+    prop: string;
+}
+
+type MyType = string | number;
+
+enum Status {
+    Active,
+    Inactive
+}
+"#;
+        let (analyzer, parsed) = parse_ts(source);
+        let facts = analyzer.extract_facts(&parsed).unwrap();
+
+        assert!(facts.declarations.iter().any(|d| d.name == "hello"));
+        assert!(facts.declarations.iter().any(|d| d.name == "greet"));
+        assert!(facts.declarations.iter().any(|d| d.name == "MyClass"));
+        assert!(facts.declarations.iter().any(|d| d.name == "MyInterface"));
+        assert!(facts.declarations.iter().any(|d| d.name == "MyType"));
+        assert!(facts.declarations.iter().any(|d| d.name == "Status"));
+    }
+
+    #[test]
+    fn test_stub_detection() {
+        let source = r#"
+function throwOnly() {
+    throw new Error("not implemented");
+}
+
+function nullOnly(): null {
+    return null;
+}
+
+function undefinedOnly(): undefined {
+    return undefined;
+}
+"#;
+        let (analyzer, parsed) = parse_ts(source);
+        let facts = analyzer.extract_facts(&parsed).unwrap();
+
+        let throw_only = facts.declarations.iter().find(|d| d.name == "throwOnly").unwrap();
+        assert!(throw_only.body.as_ref().unwrap().is_panic_only);
+
+        let null_only = facts.declarations.iter().find(|d| d.name == "nullOnly").unwrap();
+        assert!(null_only.body.as_ref().unwrap().is_nil_return_only);
     }
 }

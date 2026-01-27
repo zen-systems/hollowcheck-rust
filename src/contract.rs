@@ -57,6 +57,33 @@ impl Contract {
         Ok(contract)
     }
 
+    /// Create a default minimal contract for use when no contract file is found.
+    ///
+    /// This provides sensible defaults with no required files/symbols, but enables
+    /// core detection rules like mock signatures, dependency verification, god objects,
+    /// hollow TODOs, and forbidden patterns.
+    pub fn default_contract() -> Self {
+        Self {
+            version: "1.0".to_string(),
+            name: "default".to_string(),
+            description: Some("Auto-generated default contract".to_string()),
+            mode: Some("code".to_string()),
+            include_test_files: Some(false),
+            excluded_paths: vec![],
+            required_files: vec![],
+            required_symbols: vec![],
+            forbidden_patterns: default_forbidden_patterns(),
+            mock_signatures: Some(default_mock_signatures()),
+            complexity: vec![],
+            required_tests: vec![],
+            coverage_threshold: None,
+            prose: None,
+            dependency_verification: Some(default_dependency_verification()),
+            god_objects: Some(default_god_objects()),
+            hollow_todos: Some(HollowTodosConfig { enabled: true }),
+        }
+    }
+
     /// Returns whether to include test files (defaults to false).
     pub fn should_include_test_files(&self) -> bool {
         self.include_test_files.unwrap_or(false)
@@ -372,6 +399,69 @@ pub struct HollowTodosConfig {
     /// Whether hollow TODO detection is enabled (default: true)
     #[serde(default = "default_true")]
     pub enabled: bool,
+}
+
+/// Default forbidden patterns for the default contract.
+fn default_forbidden_patterns() -> Vec<ForbiddenPattern> {
+    vec![
+        ForbiddenPattern {
+            pattern: r#"(?i)\bpanic!\s*\(\s*\)"#.to_string(),
+            description: Some("Empty panic! call".to_string()),
+        },
+        ForbiddenPattern {
+            pattern: r#"(?i)console\.log\("#.to_string(),
+            description: Some("Debug console.log left in code".to_string()),
+        },
+        ForbiddenPattern {
+            pattern: r#"(?i)print\s*\(\s*['"]debug"#.to_string(),
+            description: Some("Debug print statement".to_string()),
+        },
+    ]
+}
+
+/// Default mock signatures config for the default contract.
+fn default_mock_signatures() -> MockSignaturesConfig {
+    MockSignaturesConfig {
+        patterns: vec![
+            MockSignature {
+                pattern: r#"(?i)(test|fake|mock|dummy|placeholder|sample|example)[-_]?(data|value|user|email|name|id|response|result)"#.to_string(),
+                description: Some("Mock/placeholder data pattern".to_string()),
+            },
+            MockSignature {
+                pattern: r#"(foo|bar|baz|qux|lorem|ipsum)"#.to_string(),
+                description: Some("Common placeholder text".to_string()),
+            },
+            MockSignature {
+                pattern: r#"(?i)(CHANGEME|REPLACE[-_]?ME|YOUR[-_]?.*[-_]?HERE|XXX[-_]?XXX)"#.to_string(),
+                description: Some("Placeholder marker".to_string()),
+            },
+        ],
+        skip_test_files: Some(true),
+        test_file_severity: None,
+    }
+}
+
+/// Default dependency verification config for the default contract.
+fn default_dependency_verification() -> DependencyVerificationConfig {
+    DependencyVerificationConfig {
+        enabled: true,
+        registries: RegistriesConfig::default(),
+        allowlist: vec![],
+        cache_ttl_hours: 24,
+        fail_on_timeout: false,
+    }
+}
+
+/// Default god objects config for the default contract.
+fn default_god_objects() -> GodObjectContractConfig {
+    GodObjectContractConfig {
+        enabled: true,
+        max_file_lines: Some(500),
+        max_function_lines: Some(50),
+        max_function_complexity: Some(15),
+        max_functions_per_file: Some(20),
+        max_class_methods: Some(15),
+    }
 }
 
 /// Validate a contract for correctness.

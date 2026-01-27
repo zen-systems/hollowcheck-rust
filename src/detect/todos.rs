@@ -142,6 +142,11 @@ fn scan_file_for_hollow_todos(file_path: &Path) -> anyhow::Result<Vec<Violation>
             continue;
         }
 
+        // Skip if TODO is in test context (test fixtures, YAML descriptions, etc.)
+        if is_todo_in_test_context(&line, file_path) {
+            continue;
+        }
+
         // Check for TODO markers
         if let Some(caps) = TODO_PATTERN.captures(&line) {
             let marker = caps.get(1).map(|m| m.as_str()).unwrap_or("TODO");
@@ -203,6 +208,94 @@ fn is_likely_string_content(line: &str) -> bool {
     }
 
     false
+}
+
+/// Check if a TODO is in a test context (test fixtures, YAML descriptions, etc.)
+///
+/// This helps avoid false positives when TODOs appear in:
+/// - Test fixture data
+/// - YAML description fields
+/// - Comments explaining test cases
+fn is_todo_in_test_context(line: &str, file_path: &Path) -> bool {
+    let trimmed = line.trim();
+    let upper = trimmed.to_uppercase();
+
+    // Check if TODO is inside a string literal
+    if is_inside_string_literal(trimmed, "TODO")
+        || is_inside_string_literal(trimmed, "FIXME")
+        || is_inside_string_literal(trimmed, "XXX")
+        || is_inside_string_literal(trimmed, "HACK")
+    {
+        return true;
+    }
+
+    // Check for YAML description/pattern fields that might contain TODO as example content
+    if trimmed.starts_with("description:")
+        || trimmed.starts_with("- pattern:")
+        || trimmed.starts_with("pattern:")
+    {
+        return true;
+    }
+
+    // Check for test file contexts - test data and fixtures
+    let path_str = file_path.to_string_lossy().to_lowercase();
+    let is_test_file = path_str.contains("test")
+        || path_str.contains("spec")
+        || path_str.contains("fixture")
+        || path_str.contains("mock");
+
+    if is_test_file {
+        // In test files, skip if line looks like test data
+        let looks_like_test_data = trimmed.contains("expected")
+            || trimmed.contains("fixture")
+            || trimmed.contains("mock")
+            || trimmed.contains("assert")
+            || (trimmed.starts_with("//") && upper.contains("\"TODO"));
+
+        if looks_like_test_data {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Check if a pattern is inside a string literal on the given line.
+///
+/// Uses a simple heuristic: count quotes before the pattern position.
+/// An odd number of quotes means we're inside a string.
+fn is_inside_string_literal(line: &str, pattern: &str) -> bool {
+    let upper_line = line.to_uppercase();
+    let upper_pattern = pattern.to_uppercase();
+
+    if let Some(pos) = upper_line.find(&upper_pattern) {
+        let before = &line[..pos];
+
+        // Count unescaped double quotes
+        let double_quotes = count_unescaped_quotes(before, '"');
+        // Count unescaped single quotes
+        let single_quotes = count_unescaped_quotes(before, '\'');
+
+        // Odd number of quotes means we're inside a string
+        (double_quotes % 2 == 1) || (single_quotes % 2 == 1)
+    } else {
+        false
+    }
+}
+
+/// Count unescaped quote characters in a string.
+fn count_unescaped_quotes(s: &str, quote: char) -> usize {
+    let mut count = 0;
+    let mut prev_char = None;
+
+    for c in s.chars() {
+        if c == quote && prev_char != Some('\\') {
+            count += 1;
+        }
+        prev_char = Some(c);
+    }
+
+    count
 }
 
 #[cfg(test)]
@@ -292,6 +385,53 @@ fn main() {
         let result = detect_hollow_todos(&[&file_path]).unwrap();
 
         // Should not flag TODOs in strings
+        assert_eq!(result.violations.len(), 0);
+    }
+
+    #[test]
+    fn test_is_inside_string_literal() {
+        // TODO inside double-quoted string
+        assert!(is_inside_string_literal(
+            r#"let msg = "TODO: implement this";"#,
+            "TODO"
+        ));
+
+        // TODO inside single-quoted string
+        assert!(is_inside_string_literal(
+            r#"let msg = 'TODO: implement this';"#,
+            "TODO"
+        ));
+
+        // TODO in actual comment (not in string)
+        assert!(!is_inside_string_literal(
+            "// TODO: implement this",
+            "TODO"
+        ));
+
+        // TODO after a closed string
+        assert!(!is_inside_string_literal(
+            r#"let msg = "hello"; // TODO: implement"#,
+            "TODO"
+        ));
+    }
+
+    #[test]
+    fn test_skip_yaml_patterns() {
+        let temp = TempDir::new().unwrap();
+        let file_path = temp.path().join("contract.yaml");
+        std::fs::write(
+            &file_path,
+            r#"
+forbidden_patterns:
+  - pattern: "TODO"
+    description: "TODO comments should be removed"
+"#,
+        )
+        .unwrap();
+
+        let result = detect_hollow_todos(&[&file_path]).unwrap();
+
+        // Should not flag TODOs in YAML description/pattern fields
         assert_eq!(result.violations.len(), 0);
     }
 }

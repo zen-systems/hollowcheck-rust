@@ -5,10 +5,28 @@
 
 use super::stdlib::{is_stdlib, StdlibLanguage};
 use crate::registry::RegistryType;
+use phf;
 use regex::Regex;
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
+
+/// Framework path aliases that should be skipped during registry checks.
+/// These are build-time aliases resolved by bundlers, not real packages.
+const FRAMEWORK_ALIASES: &[&str] = &[
+    "$lib",            // SvelteKit
+    "$app",            // SvelteKit
+    "$env",            // SvelteKit
+    "$service-worker", // SvelteKit
+    "@/",              // Common Vite/webpack alias
+    "~/",              // Nuxt
+    "#",               // Nuxt 3 auto-imports
+];
+
+/// Check if an import path is a framework alias.
+fn is_framework_alias(import: &str) -> bool {
+    FRAMEWORK_ALIASES.iter().any(|alias| import.starts_with(alias))
+}
 
 /// Information about an imported dependency.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -161,7 +179,12 @@ fn extract_js_imports(content: &str, file: &str) -> Vec<ImportedDependency> {
         for caps in IMPORT_RE.captures_iter(trimmed) {
             let name = caps.get(1).or_else(|| caps.get(2));
             if let Some(m) = name {
-                let pkg = extract_npm_package_name(m.as_str());
+                let import_path = m.as_str();
+                // Skip framework aliases
+                if is_framework_alias(import_path) {
+                    continue;
+                }
+                let pkg = extract_npm_package_name(import_path);
                 if !is_stdlib(StdlibLanguage::JavaScript, &pkg) && seen.insert(pkg.clone()) {
                     imports.push(ImportedDependency {
                         name: pkg,
@@ -176,7 +199,12 @@ fn extract_js_imports(content: &str, file: &str) -> Vec<ImportedDependency> {
         // CommonJS require
         for caps in REQUIRE_RE.captures_iter(line) {
             if let Some(m) = caps.get(1) {
-                let pkg = extract_npm_package_name(m.as_str());
+                let import_path = m.as_str();
+                // Skip framework aliases
+                if is_framework_alias(import_path) {
+                    continue;
+                }
+                let pkg = extract_npm_package_name(import_path);
                 if !is_stdlib(StdlibLanguage::JavaScript, &pkg) && seen.insert(pkg.clone()) {
                     imports.push(ImportedDependency {
                         name: pkg,
@@ -311,6 +339,21 @@ fn extract_rust_imports(content: &str, file: &str) -> Vec<ImportedDependency> {
         static ref USE_RE: Regex = Regex::new(r"(?m)^use\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:::|;)").unwrap();
         // extern crate crate_name
         static ref EXTERN_CRATE_RE: Regex = Regex::new(r"(?m)^extern\s+crate\s+([a-zA-Z_][a-zA-Z0-9_]*)").unwrap();
+        // mod local_module; (handles pub, pub(crate), pub(super), pub(in path), etc.)
+        static ref MOD_RE: Regex = Regex::new(r"(?m)^(?:pub(?:\s*\([^)]*\))?\s+)?mod\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*;").unwrap();
+    }
+
+    // First pass: collect all locally declared modules
+    let mut local_modules = HashSet::new();
+    for line in content.lines() {
+        let trimmed = line.trim();
+        // Skip comments
+        if trimmed.starts_with("//") || trimmed.starts_with("/*") {
+            continue;
+        }
+        if let Some(caps) = MOD_RE.captures(trimmed) {
+            local_modules.insert(caps.get(1).unwrap().as_str().to_string());
+        }
     }
 
     let mut imports = Vec::new();
@@ -327,6 +370,23 @@ fn extract_rust_imports(content: &str, file: &str) -> Vec<ImportedDependency> {
         // use statements
         if let Some(caps) = USE_RE.captures(trimmed) {
             let name = caps.get(1).unwrap().as_str().to_string();
+
+            // Skip internal Rust paths
+            if name == "crate" || name == "self" || name == "super" {
+                continue;
+            }
+
+            // Skip locally declared modules (mod foo; use foo::...)
+            if local_modules.contains(&name) {
+                continue;
+            }
+
+            // Skip common internal module names that are unlikely to be crates
+            // These are typically submodules declared elsewhere in the crate
+            if is_likely_internal_module(&name) {
+                continue;
+            }
+
             if !is_stdlib(StdlibLanguage::Rust, &name) && seen.insert(name.clone()) {
                 imports.push(ImportedDependency {
                     name,
@@ -352,6 +412,48 @@ fn extract_rust_imports(content: &str, file: &str) -> Vec<ImportedDependency> {
     }
 
     imports
+}
+
+/// Compile-time perfect hash set for internal module names.
+/// O(1) lookup with zero runtime initialization.
+static INTERNAL_MODULE_NAMES: phf::Set<&'static str> = phf::phf_set! {
+    "driver", "mock", "stub", "test", "tests", "util", "utils",
+    "internal", "private", "detail", "details", "imp", "impl",
+    "sys", "ffi", "raw", "core", "base", "common", "shared",
+    "types", "error", "errors", "config", "context", "state",
+    "metrics", "trace", "tracing", "registration", "scheduled",
+    "orphan", "guard", "future", "stream", "task", "counter", "counters",
+    // Standard library types commonly imported locally (e.g., `use Poll::Ready;`)
+    "poll", "option", "result", "vec", "string", "box", "pin",
+    "arc", "rc", "cell", "refcell", "mutex", "rwlock",
+    "hashmap", "hashset", "btreemap", "btreeset",
+    "duration", "instant", "systemtime",
+    "path", "pathbuf", "file", "read", "write", "seek",
+    "from", "into", "default", "clone", "copy", "debug", "display",
+    "iterator", "intoiterator", "extend", "collect",
+    // Common tokio/async types
+    "ready", "pending", "waker",
+    // Common trait/macro names
+    "send", "sync", "unpin", "sized",
+};
+
+/// Check if a module name is likely internal (not an external crate).
+///
+/// Internal modules typically have:
+/// - Very short names (1-2 chars) like `io`, `fs`, `rt`
+/// - Names that are common Rust idioms for internal modules
+/// - Standard library types that are commonly imported locally
+///
+/// Uses a compile-time perfect hash function for O(1) lookup.
+#[inline]
+fn is_likely_internal_module(name: &str) -> bool {
+    // Very short names are usually internal submodules
+    if name.len() <= 3 {
+        return true;
+    }
+
+    // O(1) lookup in perfect hash set
+    INTERNAL_MODULE_NAMES.contains(&name.to_lowercase().as_str())
 }
 
 #[cfg(test)]
@@ -440,6 +542,30 @@ use anyhow::Result;
         assert!(names.contains(&"anyhow"));
         // std is builtin
         assert!(!names.contains(&"std"));
+    }
+
+    #[test]
+    fn test_framework_aliases_skipped() {
+        // SvelteKit and other framework aliases should be filtered out
+        let content = r#"
+import { page } from '$app/stores';
+import { env } from '$env/dynamic/private';
+import { something } from '$lib/utils';
+import Component from '@/components/Button';
+import Layout from '~/layouts/default';
+import express from 'express';
+import react from 'react';
+"#;
+        let imports = extract_js_imports(content, "page.svelte");
+
+        let names: Vec<&str> = imports.iter().map(|i| i.name.as_str()).collect();
+        // Framework aliases should NOT be present
+        assert!(!names.iter().any(|n| n.starts_with("$")));
+        assert!(!names.iter().any(|n| n.starts_with("@/")));
+        assert!(!names.iter().any(|n| n.starts_with("~/")));
+        // Real packages should be present
+        assert!(names.contains(&"express"));
+        assert!(names.contains(&"react"));
     }
 
     // Note: stdlib detection tests are in the stdlib module

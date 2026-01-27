@@ -8,10 +8,15 @@ use std::path::Path;
 
 use super::{DetectionResult, Violation, ViolationRule};
 
+/// Patterns that indicate TODO/FIXME markers - these need special context handling
+const TODO_LIKE_PATTERNS: &[&str] = &["TODO", "FIXME", "XXX", "HACK"];
+
 /// Pre-compiled pattern with metadata.
 struct CompiledPattern {
     regex: Regex,
     description: Option<String>,
+    /// Whether this pattern matches TODO-like markers that need context filtering
+    is_todo_like: bool,
 }
 
 /// Scan files for forbidden patterns defined in the contract.
@@ -31,9 +36,14 @@ pub fn detect_forbidden_patterns<P: AsRef<Path>>(
         .map(|p| {
             let regex = Regex::new(&p.pattern)
                 .map_err(|e| anyhow::anyhow!("compiling pattern {:?}: {}", p.pattern, e))?;
+            // Check if this is a TODO-like pattern that needs special handling
+            let is_todo_like = TODO_LIKE_PATTERNS
+                .iter()
+                .any(|t| p.pattern.to_uppercase().contains(t));
             Ok(CompiledPattern {
                 regex,
                 description: p.description.clone(),
+                is_todo_like,
             })
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
@@ -70,6 +80,13 @@ fn scan_file_for_patterns(
                     continue;
                 }
 
+                // For TODO-like patterns, apply additional context filtering
+                if p.is_todo_like {
+                    if should_skip_todo_pattern(&line, file_path, mat.start(), mat.end()) {
+                        continue;
+                    }
+                }
+
                 let msg = if let Some(desc) = &p.description {
                     format!("forbidden pattern {:?} found: {}", p.regex.as_str(), desc)
                 } else {
@@ -88,6 +105,144 @@ fn scan_file_for_patterns(
     }
 
     Ok(violations)
+}
+
+/// Determine if a TODO-like pattern match should be skipped based on context.
+///
+/// Skips matches that are:
+/// - Part of an identifier (e.g., TODO_PATTERN, is_todo_in_test_context)
+/// - In doc comments explaining TODO functionality
+/// - In regex pattern definitions
+/// - In test fixture data
+fn should_skip_todo_pattern(line: &str, file_path: &Path, start: usize, end: usize) -> bool {
+    let chars: Vec<char> = line.chars().collect();
+
+    // Check if the match is part of a larger identifier
+    // (preceded or followed by alphanumeric/underscore)
+    if start > 0 {
+        let prev_char = chars.get(start - 1).copied().unwrap_or(' ');
+        if prev_char.is_alphanumeric() || prev_char == '_' {
+            return true;
+        }
+    }
+    if end < chars.len() {
+        let next_char = chars.get(end).copied().unwrap_or(' ');
+        if next_char.is_alphanumeric() || next_char == '_' {
+            return true;
+        }
+    }
+
+    let trimmed = line.trim();
+    let upper = trimmed.to_uppercase();
+
+    // Skip doc comments (Rust ///, Python docstrings in source context)
+    if trimmed.starts_with("///") || trimmed.starts_with("//!") {
+        return true;
+    }
+
+    // Skip if line is a regex pattern definition (common in detection code)
+    if upper.contains("REGEX") || upper.contains("PATTERN") {
+        if trimmed.contains("Regex::new") || trimmed.contains("r\"") || trimmed.contains("r#\"") {
+            return true;
+        }
+    }
+
+    // Skip lazy_static pattern definitions
+    if trimmed.contains("static ref") && (trimmed.contains("Regex") || upper.contains("PATTERN")) {
+        return true;
+    }
+
+    // Skip lines that are defining patterns to match TODO
+    // e.g., const TODO_PATTERN = ..., pattern: "TODO", etc.
+    if is_pattern_definition(trimmed) {
+        return true;
+    }
+
+    // Skip YAML/config pattern definitions
+    if trimmed.starts_with("pattern:") || trimmed.starts_with("- pattern:") {
+        return true;
+    }
+    if trimmed.starts_with("description:") {
+        return true;
+    }
+
+    // Skip if this is a detection module that deals with TODOs
+    let path_str = file_path.to_string_lossy().to_lowercase();
+    if path_str.ends_with("todos.rs") || path_str.ends_with("todo.rs")
+        || path_str.ends_with("patterns.rs") || path_str.ends_with("stubs.rs") {
+        // These files deal with detecting TODOs, so most references are meta
+        return true;
+    }
+
+    // Skip test assertions about TODOs
+    if trimmed.contains("assert") && (upper.contains("TODO") || upper.contains("FIXME")) {
+        return true;
+    }
+
+    // Skip comments that are describing TODO detection behavior (meta-comments)
+    if trimmed.starts_with("//") {
+        let comment_upper = upper.trim_start_matches('/').trim();
+        // Skip if comment is describing/explaining TODO behavior
+        if comment_upper.contains("TODO MARKER")
+            || comment_upper.contains("TODO PATTERN")
+            || comment_upper.contains("TODO DETECTION")
+            || comment_upper.contains("TODO COMMENT")
+            || comment_upper.contains("IF TODO")
+            || comment_upper.contains("FOR TODO")
+            || comment_upper.contains("CHECK FOR TODO")
+            || comment_upper.contains("SKIP IF TODO")
+            || comment_upper.contains("FLAG TODO")
+            || comment_upper.contains("MATCH TODO")
+            || comment_upper.contains("CONTAINS TODO")
+            || comment_upper.contains("HOLLOW TODO")
+            || comment_upper.contains("FIXME MARKER")
+            || comment_upper.starts_with("TODO-LIKE")
+            || comment_upper.starts_with("GOOD TODO")
+            || comment_upper.starts_with("BAD TODO")
+            || comment_upper.starts_with("MEANINGFUL TODO")
+            || comment_upper.starts_with("SKIP TODO")
+            || comment_upper.starts_with("E.G.") // Example comments
+            || (comment_upper.contains("\"TODO") || comment_upper.contains("'TODO"))
+        {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Check if a line is defining a pattern/constant that references TODO.
+fn is_pattern_definition(line: &str) -> bool {
+    let trimmed = line.trim();
+    let upper = trimmed.to_uppercase();
+
+    // Constant definitions
+    if (trimmed.starts_with("const ") || trimmed.starts_with("static "))
+        && upper.contains("PATTERN") {
+        return true;
+    }
+
+    // Variable assignments to pattern-related names
+    if trimmed.contains("_PATTERN") || trimmed.contains("_PATTERNS") {
+        return true;
+    }
+
+    // Regex captures/match statements
+    if trimmed.contains(".is_match(") || trimmed.contains(".captures(") {
+        return true;
+    }
+
+    // ForbiddenPattern struct construction
+    if trimmed.contains("ForbiddenPattern {") || trimmed.contains("ForbiddenPattern{") {
+        return true;
+    }
+
+    // MockSignature or similar pattern structs
+    if trimmed.contains("pattern:") && (trimmed.contains("r\"") || trimmed.contains("r#\"")) {
+        return true;
+    }
+
+    false
 }
 
 /// Check if a position in a line falls within a string literal.

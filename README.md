@@ -6,6 +6,16 @@ Hollowcheck validates AI-generated code against quality contracts. It detects "h
 
 > **Note:** This is a Rust rewrite of the [original Go implementation](https://github.com/zen-systems/hollowcheck). The Rust version provides identical functionality with improved performance and cross-platform binary distribution.
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [CLI Reference](docs/CLI_REFERENCE.md) | Complete command and flag documentation |
+| [Contract Reference](docs/CONTRACT_REFERENCE.md) | Full contract YAML schema |
+| [Detection Rules](docs/DETECTION_RULES.md) | Detailed detection rule documentation |
+| [Language Support](docs/LANGUAGE_SUPPORT.md) | Supported languages and feature matrix |
+| [Usage Guide](docs/USAGE_GUIDE.md) | Workflows and usage patterns |
+
 ## Installation
 
 ### Download Binary

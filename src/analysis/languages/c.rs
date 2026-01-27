@@ -6,7 +6,7 @@ use streaming_iterator::StreamingIterator;
 use tree_sitter::{Language, Parser, Query, QueryCursor};
 
 use crate::analysis::{
-    ControlFlowInfo, Declaration, DeclarationKind, FileFacts, FunctionBody,
+    ControlFlowInfo, Declaration, DeclarationKind, FileFacts, FunctionBody, Import,
     LanguageAnalyzer, ParsedFile, Span,
 };
 
@@ -46,6 +46,19 @@ const CONTROL_FLOW_QUERY: &str = r#"
 (conditional_expression) @ternary
 (binary_expression operator: "&&") @and
 (binary_expression operator: "||") @or
+"#;
+
+/// Tree-sitter query for extracting includes.
+const IMPORT_QUERY: &str = r#"
+; #include <header.h>
+(preproc_include
+  path: (system_lib_string) @system_include
+) @include_system
+
+; #include "header.h"
+(preproc_include
+  path: (string_literal) @local_include
+) @include_local
 "#;
 
 /// C language analyzer.
@@ -220,6 +233,53 @@ impl CAnalyzer {
 
         Ok(info)
     }
+
+    fn extract_imports(&self, parsed: &ParsedFile) -> anyhow::Result<Vec<Import>> {
+        let query = Query::new(&self.language, IMPORT_QUERY)?;
+        let mut cursor = QueryCursor::new();
+        let mut matches = cursor.matches(&query, parsed.tree.root_node(), &parsed.source[..]);
+
+        let mut imports = Vec::new();
+        let mut seen_paths = std::collections::HashSet::new();
+
+        while let Some(m) = matches.next() {
+            let mut path = String::new();
+            let mut import_node = None;
+
+            for capture in m.captures {
+                let name = query.capture_names()[capture.index as usize];
+                match name {
+                    "system_include" => {
+                        // Remove angle brackets: <stdio.h> -> stdio.h
+                        let raw = parsed.node_text(capture.node);
+                        path = raw.trim_matches(|c| c == '<' || c == '>').to_string();
+                        import_node = Some(capture.node);
+                    }
+                    "local_include" => {
+                        // Remove quotes: "header.h" -> header.h
+                        let raw = parsed.node_text(capture.node);
+                        path = raw.trim_matches('"').to_string();
+                        import_node = Some(capture.node);
+                    }
+                    _ => {}
+                }
+            }
+
+            if !path.is_empty() && !seen_paths.contains(&path) {
+                seen_paths.insert(path.clone());
+                if let Some(node) = import_node {
+                    imports.push(Import {
+                        path,
+                        alias: None,
+                        span: Span::from_node(node),
+                    });
+                }
+            }
+        }
+
+        imports.sort_by(|a, b| a.path.cmp(&b.path));
+        Ok(imports)
+    }
 }
 
 impl Default for CAnalyzer {
@@ -256,15 +316,74 @@ impl LanguageAnalyzer for CAnalyzer {
 
     fn extract_facts(&self, parsed: &ParsedFile) -> anyhow::Result<FileFacts> {
         let declarations = self.extract_declarations(parsed)?;
+        let imports = self.extract_imports(parsed)?;
 
         Ok(FileFacts {
             path: parsed.path.clone(),
             language: self.language_id().to_string(),
             package: None,
             declarations,
-            imports: Vec::new(),
+            imports,
             has_parse_errors: parsed.tree.root_node().has_error(),
             parse_error: None,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_c(source: &str) -> (CAnalyzer, ParsedFile) {
+        let analyzer = CAnalyzer::new();
+        let parsed = analyzer
+            .parse(Path::new("test.c"), source.as_bytes())
+            .unwrap();
+        (analyzer, parsed)
+    }
+
+    #[test]
+    fn test_extract_includes() {
+        let source = r#"
+#include <stdio.h>
+#include <stdlib.h>
+#include "myheader.h"
+
+int main() {
+    return 0;
+}
+"#;
+        let (analyzer, parsed) = parse_c(source);
+        let facts = analyzer.extract_facts(&parsed).unwrap();
+
+        assert!(facts.imports.iter().any(|i| i.path == "stdio.h"));
+        assert!(facts.imports.iter().any(|i| i.path == "stdlib.h"));
+        assert!(facts.imports.iter().any(|i| i.path == "myheader.h"));
+    }
+
+    #[test]
+    fn test_extract_declarations() {
+        let source = r#"
+struct Point {
+    int x;
+    int y;
+};
+
+enum Color {
+    RED,
+    GREEN,
+    BLUE
+};
+
+int add(int a, int b) {
+    return a + b;
+}
+"#;
+        let (analyzer, parsed) = parse_c(source);
+        let facts = analyzer.extract_facts(&parsed).unwrap();
+
+        assert!(facts.declarations.iter().any(|d| d.name == "Point" && d.kind == DeclarationKind::Struct));
+        assert!(facts.declarations.iter().any(|d| d.name == "Color" && d.kind == DeclarationKind::Enum));
+        assert!(facts.declarations.iter().any(|d| d.name == "add" && d.kind == DeclarationKind::Function));
     }
 }

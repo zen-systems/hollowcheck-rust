@@ -17,6 +17,7 @@ mod dependencies;
 mod files;
 mod god_objects;
 mod imports;
+pub mod manifest;
 mod mocks;
 mod patterns;
 mod runner;
@@ -28,7 +29,11 @@ mod todos;
 mod types;
 
 pub use complexity::detect_low_complexity;
-pub use dependencies::detect_hallucinated_dependencies;
+pub use dependencies::{detect_hallucinated_dependencies, DependencyValidator};
+pub use manifest::{
+    detect_manifest_type, GoManifest, HomeAssistantManifest, ManifestProvider, ManifestStats,
+    ManifestType, NoManifest, PythonManifest,
+};
 pub use files::detect_missing_files;
 pub use god_objects::{detect_god_objects, GodObjectConfig};
 pub use imports::{extract_imports, ImportedDependency};

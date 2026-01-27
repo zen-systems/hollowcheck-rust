@@ -6,7 +6,7 @@ use streaming_iterator::StreamingIterator;
 use tree_sitter::{Language, Parser, Query, QueryCursor};
 
 use crate::analysis::{
-    ControlFlowInfo, Declaration, DeclarationKind, FileFacts, FunctionBody,
+    ControlFlowInfo, Declaration, DeclarationKind, FileFacts, FunctionBody, Import,
     LanguageAnalyzer, ParsedFile, Span,
 };
 
@@ -20,21 +20,6 @@ const DECLARATION_QUERY: &str = r#"
 (class_declaration
   name: (type_identifier) @class_name
 ) @class
-
-; Struct declarations
-(struct_declaration
-  (type_identifier) @struct_name
-) @struct
-
-; Protocol declarations
-(protocol_declaration
-  name: (type_identifier) @protocol_name
-) @protocol
-
-; Enum declarations
-(enum_declaration
-  name: (type_identifier) @enum_name
-) @enum
 "#;
 
 const CONTROL_FLOW_QUERY: &str = r#"
@@ -50,6 +35,14 @@ const CONTROL_FLOW_QUERY: &str = r#"
 (do_statement) @do
 (catch_block) @catch
 (guard_statement) @guard
+"#;
+
+/// Tree-sitter query for extracting imports.
+const IMPORT_QUERY: &str = r#"
+; import Foundation
+(import_declaration
+  (identifier) @import_module
+) @import
 "#;
 
 pub struct SwiftAnalyzer {
@@ -93,19 +86,7 @@ impl SwiftAnalyzer {
                         name = parsed.node_text(capture.node).to_string();
                         kind = DeclarationKind::Type;
                     }
-                    "struct_name" => {
-                        name = parsed.node_text(capture.node).to_string();
-                        kind = DeclarationKind::Struct;
-                    }
-                    "protocol_name" => {
-                        name = parsed.node_text(capture.node).to_string();
-                        kind = DeclarationKind::Interface;
-                    }
-                    "enum_name" => {
-                        name = parsed.node_text(capture.node).to_string();
-                        kind = DeclarationKind::Enum;
-                    }
-                    "function" | "class" | "struct" | "protocol" | "enum" => {
+                    "function" | "class" => {
                         decl_node = Some(capture.node);
                     }
                     _ => {}
@@ -256,6 +237,42 @@ impl SwiftAnalyzer {
 
         Ok(info)
     }
+
+    fn extract_imports(&self, parsed: &ParsedFile) -> anyhow::Result<Vec<Import>> {
+        let query = Query::new(&self.language, IMPORT_QUERY)?;
+        let mut cursor = QueryCursor::new();
+        let mut matches = cursor.matches(&query, parsed.tree.root_node(), &parsed.source[..]);
+
+        let mut imports = Vec::new();
+        let mut seen_paths = std::collections::HashSet::new();
+
+        while let Some(m) = matches.next() {
+            let mut path = String::new();
+            let mut import_node = None;
+
+            for capture in m.captures {
+                let name = query.capture_names()[capture.index as usize];
+                if name == "import_module" {
+                    path = parsed.node_text(capture.node).to_string();
+                    import_node = Some(capture.node);
+                }
+            }
+
+            if !path.is_empty() && !seen_paths.contains(&path) {
+                seen_paths.insert(path.clone());
+                if let Some(node) = import_node {
+                    imports.push(Import {
+                        path,
+                        alias: None,
+                        span: Span::from_node(node),
+                    });
+                }
+            }
+        }
+
+        imports.sort_by(|a, b| a.path.cmp(&b.path));
+        Ok(imports)
+    }
 }
 
 impl Default for SwiftAnalyzer {
@@ -292,15 +309,81 @@ impl LanguageAnalyzer for SwiftAnalyzer {
 
     fn extract_facts(&self, parsed: &ParsedFile) -> anyhow::Result<FileFacts> {
         let declarations = self.extract_declarations(parsed)?;
+        let imports = self.extract_imports(parsed)?;
 
         Ok(FileFacts {
             path: parsed.path.clone(),
             language: self.language_id().to_string(),
             package: None,
             declarations,
-            imports: Vec::new(),
+            imports,
             has_parse_errors: parsed.tree.root_node().has_error(),
             parse_error: None,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_swift(source: &str) -> (SwiftAnalyzer, ParsedFile) {
+        let analyzer = SwiftAnalyzer::new();
+        let parsed = analyzer
+            .parse(Path::new("Test.swift"), source.as_bytes())
+            .unwrap();
+        (analyzer, parsed)
+    }
+
+    #[test]
+    fn test_extract_imports() {
+        let source = r#"
+import Foundation
+import UIKit
+
+class Test {}
+"#;
+        let (analyzer, parsed) = parse_swift(source);
+        let facts = analyzer.extract_facts(&parsed).unwrap();
+
+        assert!(facts.imports.iter().any(|i| i.path == "Foundation"));
+        assert!(facts.imports.iter().any(|i| i.path == "UIKit"));
+    }
+
+    #[test]
+    fn test_extract_declarations() {
+        let source = r#"
+class MyClass {
+    func myMethod() {}
+}
+
+func topLevelFunc() {}
+"#;
+        let (analyzer, parsed) = parse_swift(source);
+        let facts = analyzer.extract_facts(&parsed).unwrap();
+
+        assert!(facts.declarations.iter().any(|d| d.name == "MyClass" && d.kind == DeclarationKind::Type));
+        assert!(facts.declarations.iter().any(|d| d.name == "topLevelFunc" && d.kind == DeclarationKind::Function));
+    }
+
+    #[test]
+    fn test_stub_detection() {
+        let source = r#"
+func stubFatalError() {
+    fatalError("not implemented")
+}
+
+func stubNil() -> String? {
+    return nil
+}
+"#;
+        let (analyzer, parsed) = parse_swift(source);
+        let facts = analyzer.extract_facts(&parsed).unwrap();
+
+        let fatal_error = facts.declarations.iter().find(|d| d.name == "stubFatalError").unwrap();
+        assert!(fatal_error.body.as_ref().unwrap().is_panic_only);
+
+        let stub_nil = facts.declarations.iter().find(|d| d.name == "stubNil").unwrap();
+        assert!(stub_nil.body.as_ref().unwrap().is_nil_return_only);
     }
 }

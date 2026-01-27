@@ -233,10 +233,20 @@ impl RustAnalyzer {
             .count();
 
         // Analyze body contents
-        let is_empty = statement_count == 0;
+        let raw_is_empty = statement_count == 0;
 
         // Check for panic/unimplemented/todo! macro
-        let is_panic_only = self.is_panic_only_body(parsed, body_node);
+        let raw_is_panic_only = self.is_panic_only_body(parsed, body_node);
+
+        // Check for legitimate Rust patterns that should NOT be flagged as stubs
+        let func_text = parsed.node_text(func_node);
+        let is_legitimate_pattern = self.is_legitimate_rust_pattern(
+            parsed, func_node, func_text, raw_is_empty, raw_is_panic_only
+        );
+
+        // Only flag as empty/panic if not a legitimate pattern
+        let is_empty = raw_is_empty && !is_legitimate_pattern;
+        let is_panic_only = raw_is_panic_only && !is_legitimate_pattern;
 
         // Check for None return
         let is_nil_return_only = self.is_none_return_only_body(parsed, body_node);
@@ -259,6 +269,132 @@ impl RustAnalyzer {
         }))
     }
 
+    /// Check if this is a legitimate Rust pattern that should not be flagged as a stub.
+    ///
+    /// Legitimate patterns include:
+    /// - Compile-time trait bound verification functions (check_send, is_unpin, etc.)
+    /// - Conditional compilation no-ops (metrics disabled, etc.)
+    /// - Platform compatibility stubs in stub.rs files
+    /// - Default trait implementations
+    fn is_legitimate_rust_pattern(
+        &self,
+        parsed: &ParsedFile,
+        func_node: tree_sitter::Node,
+        func_text: &str,
+        is_empty: bool,
+        is_panic_only: bool,
+    ) -> bool {
+        // Extract function name
+        let func_name = func_node
+            .children(&mut func_node.walk())
+            .find(|n| n.kind() == "identifier")
+            .map(|n| parsed.node_text(n))
+            .unwrap_or("");
+
+        // Check file path for stub/mock files
+        let path_lower = parsed.path.to_lowercase();
+        let is_stub_file = path_lower.ends_with("stub.rs")
+            || path_lower.ends_with("stubs.rs")
+            || path_lower.ends_with("mock.rs")
+            || path_lower.ends_with("mocks.rs")
+            || path_lower.ends_with("noop.rs")
+            || path_lower.contains("/stub/")
+            || path_lower.contains("/mock/");
+
+        // Platform stubs that panic are intentional
+        if is_panic_only && is_stub_file {
+            return true;
+        }
+
+        // Empty functions in stub/mock files are intentional no-ops
+        if is_empty && is_stub_file {
+            return true;
+        }
+
+        // Check for compile-time trait bound verification patterns
+        // These are empty functions that verify trait bounds at compile time
+        if is_empty {
+            // Common trait verification function names
+            let trait_check_names = [
+                "check_send", "check_sync", "check_unpin", "check_static",
+                "check_send_sync", "check_send_sync_val", "check_static_val",
+                "is_send", "is_sync", "is_unpin", "is_debug",
+                "_assert", "_assert_send", "_assert_sync", "_assert_unpin",
+            ];
+            if trait_check_names.iter().any(|&name| func_name == name || func_name.starts_with(name)) {
+                return true;
+            }
+
+            // Functions with generic type parameters and trait bounds are likely compile-time checks
+            // e.g., fn check_send<T: Send>() {}
+            if func_text.contains("<") && func_text.contains(":") {
+                // Has generic with bounds - likely a trait check
+                if func_name.starts_with("check_") || func_name.starts_with("is_") || func_name.starts_with("_") {
+                    return true;
+                }
+            }
+
+            // No-op counter/metric functions (often conditionally compiled)
+            let noop_prefixes = ["inc_", "dec_", "add_", "record_", "log_"];
+            if noop_prefixes.iter().any(|p| func_name.starts_with(p)) {
+                // Check if this looks like a metrics/counter file
+                if path_lower.contains("counter")
+                    || path_lower.contains("metric")
+                    || path_lower.contains("stats")
+                {
+                    return true;
+                }
+            }
+
+            // Default trait implementations (initialize, finalize, etc.)
+            let default_impl_names = [
+                "initialize", "finalize", "default", "new",
+                "consume", "flush", "clear", "reset",
+                "wake", "drop", "close",
+            ];
+            // Only skip if the function is very simple (no params or just &self)
+            let simple_signature = !func_text.contains(",") || func_text.contains("&self)") || func_text.contains("&mut self)");
+            if default_impl_names.iter().any(|&name| func_name == name) && simple_signature {
+                return true;
+            }
+
+            // Functions starting with underscore are often intentionally unused/placeholder
+            if func_name.starts_with("_") {
+                return true;
+            }
+
+            // retain_ready and similar callback functions
+            if func_name.contains("retain") || func_name.contains("callback") || func_name.contains("handler") {
+                return true;
+            }
+
+            // post_* and pre_* hook functions that may be no-ops
+            if func_name.starts_with("post_") || func_name.starts_with("pre_") || func_name.starts_with("on_") {
+                return true;
+            }
+
+            // unhandled_* functions are often intentional no-ops
+            if func_name.starts_with("unhandled_") {
+                return true;
+            }
+
+            // Functions with explicitly unused parameters (prefixed with _) are intentional no-ops
+            // e.g., fn initialize(_: Internal, _lower: usize) {}
+            // These are callbacks where the implementation doesn't need the params
+            if func_text.contains("_:") || func_text.contains("_,") || func_text.contains(", _)") {
+                return true;
+            }
+
+            // Methods on types that are intentionally empty (Empty, Noop, etc.)
+            let empty_type_names = ["Empty", "Noop", "NoOp", "Void", "Unit", "Null", "Dummy"];
+            if empty_type_names.iter().any(|t| path_lower.contains(&t.to_lowercase())) {
+                return true;
+            }
+        }
+
+        false
+    }
+
     /// Check if a function body only contains a panic/unimplemented/todo! macro.
     fn is_panic_only_body(&self, parsed: &ParsedFile, body_node: tree_sitter::Node) -> bool {
         let statements: Vec<_> = body_node
@@ -276,9 +412,23 @@ impl RustAnalyzer {
         // Check for panic!, unimplemented!, todo! macros
         if stmt.kind() == "expression_statement" || stmt.kind() == "macro_invocation" {
             let trimmed = text.trim();
-            return trimmed.starts_with("panic!")
-                || trimmed.starts_with("unimplemented!")
-                || trimmed.starts_with("todo!");
+
+            // Only flag as stub if it's unimplemented!/todo! OR panic!() without a message
+            // panic!("some message") is often an intentional error handler
+            if trimmed.starts_with("unimplemented!") || trimmed.starts_with("todo!") {
+                return true;
+            }
+
+            // For panic!, only flag if it's empty panic!() without a meaningful message
+            if trimmed.starts_with("panic!") {
+                // panic!() or panic!("") are stubs
+                // panic!("meaningful error message") are intentional error handlers
+                let is_empty_panic = trimmed == "panic!()"
+                    || trimmed == "panic!();"
+                    || trimmed == r#"panic!("")"#
+                    || trimmed == r#"panic!("");"#;
+                return is_empty_panic;
+            }
         }
 
         false

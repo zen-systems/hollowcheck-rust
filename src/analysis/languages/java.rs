@@ -6,7 +6,7 @@ use streaming_iterator::StreamingIterator;
 use tree_sitter::{Language, Parser, Query, QueryCursor};
 
 use crate::analysis::{
-    ControlFlowInfo, Declaration, DeclarationKind, FileFacts, FunctionBody,
+    ControlFlowInfo, Declaration, DeclarationKind, FileFacts, FunctionBody, Import,
     LanguageAnalyzer, ParsedFile, Span,
 };
 
@@ -45,11 +45,30 @@ const CONTROL_FLOW_QUERY: &str = r#"
 (do_statement) @do
 (switch_expression) @switch
 (switch_block_statement_group) @case
-(conditional_expression) @ternary
-(binary_expression operator: "&&") @and
-(binary_expression operator: "||") @or
+(ternary_expression) @ternary
 (try_statement) @try
 (catch_clause) @catch
+"#;
+
+/// Tree-sitter query for extracting imports.
+const IMPORT_QUERY: &str = r#"
+; import com.package.Class;
+(import_declaration
+  (scoped_identifier) @import_path
+) @import
+
+; import static com.package.Class.method;
+(import_declaration
+  "static"
+  (scoped_identifier) @static_import_path
+) @static_import
+"#;
+
+/// Tree-sitter query for package declaration.
+const PACKAGE_QUERY: &str = r#"
+(package_declaration
+  (scoped_identifier) @package_name
+)
 "#;
 
 pub struct JavaAnalyzer {
@@ -247,8 +266,6 @@ impl JavaAnalyzer {
                     "switch" => info.switch_count += 1,
                     "case" => info.case_count += 1,
                     "ternary" => info.ternary_count += 1,
-                    "and" => info.and_count += 1,
-                    "or" => info.or_count += 1,
                     "catch" => info.catch_count += 1,
                     _ => {}
                 }
@@ -256,6 +273,61 @@ impl JavaAnalyzer {
         }
 
         Ok(info)
+    }
+
+    fn extract_package(&self, parsed: &ParsedFile) -> Option<String> {
+        let query = Query::new(&self.language, PACKAGE_QUERY).ok()?;
+        let mut cursor = QueryCursor::new();
+        let mut matches = cursor.matches(&query, parsed.tree.root_node(), &parsed.source[..]);
+
+        if let Some(m) = matches.next() {
+            for capture in m.captures {
+                let name = query.capture_names()[capture.index as usize];
+                if name == "package_name" {
+                    return Some(parsed.node_text(capture.node).to_string());
+                }
+            }
+        }
+        None
+    }
+
+    fn extract_imports(&self, parsed: &ParsedFile) -> anyhow::Result<Vec<Import>> {
+        let query = Query::new(&self.language, IMPORT_QUERY)?;
+        let mut cursor = QueryCursor::new();
+        let mut matches = cursor.matches(&query, parsed.tree.root_node(), &parsed.source[..]);
+
+        let mut imports = Vec::new();
+        let mut seen_paths = std::collections::HashSet::new();
+
+        while let Some(m) = matches.next() {
+            let mut path = String::new();
+            let mut import_node = None;
+
+            for capture in m.captures {
+                let name = query.capture_names()[capture.index as usize];
+                match name {
+                    "import_path" | "static_import_path" => {
+                        path = parsed.node_text(capture.node).to_string();
+                        import_node = Some(capture.node);
+                    }
+                    _ => {}
+                }
+            }
+
+            if !path.is_empty() && !seen_paths.contains(&path) {
+                seen_paths.insert(path.clone());
+                if let Some(node) = import_node {
+                    imports.push(Import {
+                        path,
+                        alias: None,
+                        span: Span::from_node(node),
+                    });
+                }
+            }
+        }
+
+        imports.sort_by(|a, b| a.path.cmp(&b.path));
+        Ok(imports)
     }
 }
 
@@ -292,16 +364,97 @@ impl LanguageAnalyzer for JavaAnalyzer {
     }
 
     fn extract_facts(&self, parsed: &ParsedFile) -> anyhow::Result<FileFacts> {
+        let package = self.extract_package(parsed);
         let declarations = self.extract_declarations(parsed)?;
+        let imports = self.extract_imports(parsed)?;
 
         Ok(FileFacts {
             path: parsed.path.clone(),
             language: self.language_id().to_string(),
-            package: None,
+            package,
             declarations,
-            imports: Vec::new(),
+            imports,
             has_parse_errors: parsed.tree.root_node().has_error(),
             parse_error: None,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_java(source: &str) -> (JavaAnalyzer, ParsedFile) {
+        let analyzer = JavaAnalyzer::new();
+        let parsed = analyzer
+            .parse(Path::new("Test.java"), source.as_bytes())
+            .unwrap();
+        (analyzer, parsed)
+    }
+
+    #[test]
+    fn test_extract_imports() {
+        let source = r#"
+package com.example;
+
+import java.util.List;
+import java.util.Map;
+import static java.lang.Math.PI;
+
+public class Test {}
+"#;
+        let (analyzer, parsed) = parse_java(source);
+        let facts = analyzer.extract_facts(&parsed).unwrap();
+
+        assert_eq!(facts.package, Some("com.example".to_string()));
+        assert!(facts.imports.iter().any(|i| i.path == "java.util.List"));
+        assert!(facts.imports.iter().any(|i| i.path == "java.util.Map"));
+    }
+
+    #[test]
+    fn test_extract_classes() {
+        let source = r#"
+public class MyClass {
+    public void myMethod() {}
+}
+
+interface MyInterface {
+    void doSomething();
+}
+
+enum MyEnum {
+    VALUE1, VALUE2
+}
+"#;
+        let (analyzer, parsed) = parse_java(source);
+        let facts = analyzer.extract_facts(&parsed).unwrap();
+
+        assert!(facts.declarations.iter().any(|d| d.name == "MyClass" && d.kind == DeclarationKind::Type));
+        assert!(facts.declarations.iter().any(|d| d.name == "myMethod" && d.kind == DeclarationKind::Method));
+        assert!(facts.declarations.iter().any(|d| d.name == "MyInterface" && d.kind == DeclarationKind::Interface));
+        assert!(facts.declarations.iter().any(|d| d.name == "MyEnum" && d.kind == DeclarationKind::Enum));
+    }
+
+    #[test]
+    fn test_stub_detection() {
+        let source = r#"
+public class Test {
+    public void throwOnly() {
+        throw new UnsupportedOperationException();
+    }
+
+    public Object nullOnly() {
+        return null;
+    }
+}
+"#;
+        let (analyzer, parsed) = parse_java(source);
+        let facts = analyzer.extract_facts(&parsed).unwrap();
+
+        let throw_only = facts.declarations.iter().find(|d| d.name == "throwOnly").unwrap();
+        assert!(throw_only.body.as_ref().unwrap().is_panic_only);
+
+        let null_only = facts.declarations.iter().find(|d| d.name == "nullOnly").unwrap();
+        assert!(null_only.body.as_ref().unwrap().is_nil_return_only);
     }
 }
